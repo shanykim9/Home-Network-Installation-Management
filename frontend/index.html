@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>홈 네트워크 관리 시스템</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- 네비게이션 바 -->
+    <nav class="bg-blue-600 text-white p-4 shadow-lg">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold">홈 네트워크 관리 시스템</h1>
+            <div id="user-info" class="hidden">
+                <span id="user-name" class="mr-4"></span>
+                <span id="user-role" class="bg-blue-800 px-2 py-1 rounded text-sm mr-4"></span>
+                <button id="logout-btn" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded">
+                    <i class="fas fa-sign-out-alt mr-1"></i>로그아웃
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 메인 컨테이너 -->
+    <div class="container mx-auto p-6">
+        <!-- 로그인/회원가입 페이지 -->
+        <div id="auth-page" class="max-w-md mx-auto">
+            <div class="bg-white p-8 rounded-lg shadow-md">
+                <h2 id="auth-title" class="text-2xl font-bold text-center mb-6">로그인</h2>
+                
+                <!-- 로그인 폼 -->
+                <form id="login-form">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="email">
+                            이메일
+                        </label>
+                        <input id="email" type="email" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="password">
+                            비밀번호
+                        </label>
+                        <input id="password" type="password" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>
+                    <button type="submit" 
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                        로그인
+                    </button>
+                </form>
+
+                <!-- 회원가입 폼 -->
+                <form id="register-form" class="hidden">
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="reg-name">
+                            이름
+                        </label>
+                        <input id="reg-name" type="text" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="reg-email">
+                            이메일
+                        </label>
+                        <input id="reg-email" type="email" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="reg-phone">
+                            전화번호
+                        </label>
+                        <input id="reg-phone" type="tel" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="reg-password">
+                            비밀번호
+                        </label>
+                        <input id="reg-password" type="password" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div class="mb-6">
+                        <label class="block text-gray-700 text-sm font-bold mb-2" for="reg-user-role">
+                            사용자 권한
+                        </label>
+                        <select id="reg-user-role" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                            <option value="user">일반사용자</option>
+                            <option value="admin">관리자</option>
+                        </select>
+                    </div>
+                    <button type="submit" 
+                        class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                        회원가입
+                    </button>
+                </form>
+
+                <!-- 로그인/회원가입 토글 -->
+                <div class="mt-4 text-center">
+                    <button id="toggle-auth" class="text-blue-600 hover:text-blue-800">
+                        회원가입하기
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 메인 대시보드 -->
+        <div id="main-dashboard" class="hidden">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                <!-- 현장 등록 카드 -->
+                <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer" onclick="showPage('site-registration')">
+                    <div class="flex items-center">
+                        <i class="fas fa-building text-blue-500 text-3xl mr-4"></i>
+                        <div>
+                            <h3 class="text-lg font-semibold">현장 등록</h3>
+                            <p class="text-gray-600">새로운 현장 정보를 등록합니다</p>
+                        </div>
+                    </div>
+                </div>                <!-- 일일업무관리 카드 -->
+                <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer" onclick="showPage('daily-work')">
+                    <div class="flex items-center">
+                        <i class="fas fa-tasks text-green-500 text-3xl mr-4"></i>
+                        <div>
+                            <h3 class="text-lg font-semibold">일일업무관리</h3>
+                            <p class="text-gray-600">스마트플랜과 Action Plan 관리</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 현장별 전체조회 카드 -->
+                <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer" onclick="showPage('site-overview')">
+                    <div class="flex items-center">
+                        <i class="fas fa-chart-bar text-purple-500 text-3xl mr-4"></i>
+                        <div>
+                            <h3 class="text-lg font-semibold">현장별 전체조회</h3>
+                            <p class="text-gray-600">등록된 현장들의 전체 현황 조회</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 현장 등록 페이지 -->
+        <div id="site-registration-page" class="hidden">
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
+                    <h2 class="text-2xl font-bold">현장 등록</h2>
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm text-gray-600">현장 선택</label>
+                        <select id="site-select" class="px-3 py-2 border border-gray-300 rounded-md min-w-[240px]"></select>
+                        <button id="refresh-sites" class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded border"><i class="fas fa-rotate mr-1"></i>새로고침</button>
+                    </div>
+                    <button onclick="showPage('dashboard')" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">
+                        <i class="fas fa-arrow-left mr-2"></i>돌아가기
+                    </button>
+                </div>
+
+                <!-- 탭 네비게이션 -->
+                <div class="border-b mb-6">
+                    <nav class="flex flex-wrap gap-4" role="tablist">
+                        <button class="tab-btn text-blue-600 border-b-2 border-blue-600 pb-2" data-tab="basic">기본정보</button>
+                        <button class="tab-btn text-gray-600 hover:text-blue-600 pb-2" data-tab="contacts">연락처</button>
+                        <button class="tab-btn text-gray-600 hover:text-blue-600 pb-2" data-tab="products">제품수량</button>
+                        <button class="tab-btn text-gray-600 hover:text-blue-600 pb-2" data-tab="household">세대부연동</button>
+                        <button class="tab-btn text-gray-600 hover:text-blue-600 pb-2" data-tab="common">공용부연동</button>
+                    </nav>
+                </div>
+                
+                <!-- 기본정보 탭 -->
+                <form id="site-form" class="tab-panel grid grid-cols-1 md:grid-cols-2 gap-6" data-tab="basic">
+                    <!-- 등록번호와 프로젝트 No. (맨 위) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">등록번호</label>
+                        <input type="text" id="registration-no" disabled
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">프로젝트 No.</label>
+                        <input type="text" id="project-no" required 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>
+                    
+                    <!-- 기본정보 섹션 -->
+                    <div class="md:col-span-2">
+                        <h3 class="text-lg font-semibold mb-4 text-blue-600">기본정보</h3>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">건설사</label>
+                        <input type="text" id="construction-company" required 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">현장명</label>
+                        <input type="text" id="site-name" required 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">주소</label>
+                        <input type="text" id="address" required 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">상세주소</label>
+                        <input type="text" id="detail-address" required 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">세대수</label>
+                        <input type="number" id="household-count" required 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>
+                    
+                    <!-- 날짜 입력 필드들 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">등록일</label>
+                        <input type="date" id="registration-date" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500"
+                            onchange="formatDateDisplay(this, 'registration-date-display')">
+                        <div id="registration-date-display" class="text-sm text-gray-600 mt-1"></div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">납품예정</label>
+                        <input type="date" id="delivery-date" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500"
+                            onchange="formatDateDisplay(this, 'delivery-date-display')">
+                        <div id="delivery-date-display" class="text-sm text-gray-600 mt-1"></div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">준공일</label>
+                        <input type="date" id="completion-date" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500"
+                            onchange="formatDateDisplay(this, 'completion-date-display')">
+                        <div id="completion-date-display" class="text-sm text-gray-600 mt-1"></div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">인증심사여부</label>
+                        <select id="certification-audit" required 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                            <option value="">선택하세요</option>
+                            <option value="Y">예</option>
+                            <option value="N">아니오</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">홈IoT연동여부</label>
+                        <select id="home-iot" required 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                            <option value="">선택하세요</option>
+                            <option value="Y">예</option>
+                            <option value="N">아니오</option>
+                        </select>
+                    </div>
+                    
+                    <div class="md:col-span-2 mt-6">
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+                            <i class="fas fa-save mr-2"></i>현장 등록
+                        </button>
+                    </div>
+                </form>
+
+                <!-- 연락처 탭 -->
+                <div id="contacts-tab" class="tab-panel hidden" data-tab="contacts">
+                    <!-- 등록번호와 프로젝트 No. (맨 위) -->
+                    <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">등록번호</label>
+                            <input type="text" id="contacts-registration-no" disabled
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">프로젝트 No.</label>
+                            <input type="text" id="contacts-project-no" disabled
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-lg font-semibold mb-4 text-blue-600">연락처</h3>
+                    <form id="contacts-form" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">PM 이름</label>
+                            <input type="text" id="pm_name" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">PM 전화번호</label>
+                            <input type="text" id="pm_phone" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">영업담당 이름</label>
+                            <input type="text" id="sales_manager_name" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">영업담당 전화번호</label>
+                            <input type="text" id="sales_manager_phone" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">건설담당 이름</label>
+                            <input type="text" id="construction_manager_name" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">건설담당 전화번호</label>
+                            <input type="text" id="construction_manager_phone" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">설치점 이름</label>
+                            <input type="text" id="installer_name" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">설치점 전화번호</label>
+                            <input type="text" id="installer_phone" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">네트워크점 이름</label>
+                            <input type="text" id="network_manager_name" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">네트워크점 전화번호</label>
+                            <input type="text" id="network_manager_phone" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        </div>
+                        <div class="md:col-span-2 mt-2">
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+                                <i class="fas fa-save mr-2"></i>저장
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 제품수량 탭 -->
+                <div id="products-tab" class="tab-panel hidden" data-tab="products">
+                    <!-- 등록번호와 프로젝트 No. (맨 위) -->
+                    <div class="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">등록번호</label>
+                            <input type="text" id="products-registration-no" disabled
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">프로젝트 No.</label>
+                            <input type="text" id="products-project-no" disabled
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
+                        </div>
+                    </div>
+
+                    <h3 class="text-lg font-semibold mb-4 text-blue-600">제품수량</h3>
+                    <form id="products-form" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- 월패드 -->
+                        <div class="md:col-span-3">
+                            <h4 class="font-semibold mb-2">월패드</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">모델</label>
+                                    <select id="wallpad_model" class="w-full px-3 py-2 border rounded-md">
+                                        <option value="">선택</option>
+                                        <option>모델 A</option>
+                                        <option>모델 B</option>
+                                        <option>모델 C</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">수량</label>
+                                    <input type="number" id="wallpad_qty" class="w-full px-3 py-2 border rounded-md" min="0" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 도어폰 -->
+                        <div class="md:col-span-3">
+                            <h4 class="font-semibold mb-2">도어폰</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">모델</label>
+                                    <select id="doorphone_model" class="w-full px-3 py-2 border rounded-md">
+                                        <option value="">선택</option>
+                                        <option>모델 A</option>
+                                        <option>모델 B</option>
+                                        <option>모델 C</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">수량</label>
+                                    <input type="number" id="doorphone_qty" class="w-full px-3 py-2 border rounded-md" min="0" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 로비폰 -->
+                        <div class="md:col-span-3">
+                            <h4 class="font-semibold mb-2">로비폰</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">모델</label>
+                                    <select id="lobbyphone_model" class="w-full px-3 py-2 border rounded-md">
+                                        <option value="">선택</option>
+                                        <option>모델 A</option>
+                                        <option>모델 B</option>
+                                        <option>모델 C</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">수량</label>
+                                    <input type="number" id="lobbyphone_qty" class="w-full px-3 py-2 border rounded-md" min="0" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="md:col-span-3 mt-2">
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+                                <i class="fas fa-save mr-2"></i>저장
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 세대부연동 탭 -->
+                <div id="household-tab" class="tab-panel hidden" data-tab="household">
+                    <!-- 등록번호와 프로젝트 No. (맨 위) -->
+                    <div class="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">등록번호</label>
+                            <input type="text" id="household-registration-no" disabled
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">프로젝트 No.</label>
+                            <input type="text" id="household-project-no" disabled
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-lg font-semibold mb-4 text-blue-600">세대부연동</h3>
+                    <form id="household-form" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- 조명 SW -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">조명 SW 연동</label>
+                            <select id="lighting_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="N">아니오</option>
+                                <option value="Y">예</option>
+                            </select>
+                            <input type="text" id="lighting_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <!-- 대기전력 SW -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">대기전력 SW 연동</label>
+                            <select id="standby_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="N">아니오</option>
+                                <option value="Y">예</option>
+                            </select>
+                            <input type="text" id="standby_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <!-- 가스감지기 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">가스감지기 연동</label>
+                            <select id="gas_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="N">아니오</option>
+                                <option value="Y">예</option>
+                            </select>
+                            <input type="text" id="gas_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <div class="md:col-span-3 mt-2">
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+                                <i class="fas fa-save mr-2"></i>저장
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- 공용부연동 탭 -->
+                <div id="common-tab" class="tab-panel hidden" data-tab="common">
+                    <!-- 등록번호와 프로젝트 No. (맨 위) -->
+                    <div class="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">등록번호</label>
+                            <input type="text" id="common-registration-no" disabled
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-700 mb-2">프로젝트 No.</label>
+                            <input type="text" id="common-project-no" disabled
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 text-gray-600">
+                        </div>
+                    </div>
+                    
+                    <h3 class="text-lg font-semibold mb-4 text-blue-600">공용부연동</h3>
+                    <form id="common-form" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- 주차관제 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">주차관제 연동</label>
+                            <select id="parking_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="N">아니오</option>
+                                <option value="Y">예</option>
+                            </select>
+                            <input type="text" id="parking_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <!-- 원격검침 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">원격검침 연동</label>
+                            <select id="metering_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="N">아니오</option>
+                                <option value="Y">예</option>
+                            </select>
+                            <input type="text" id="metering_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <!-- CCTV -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">CCTV 연동</label>
+                            <select id="cctv_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="N">아니오</option>
+                                <option value="Y">예</option>
+                            </select>
+                            <input type="text" id="cctv_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <div class="md:col-span-3 mt-2">
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+                                <i class="fas fa-save mr-2"></i>저장
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 파일들 -->
+    <script src="js/auth.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/site-tabs.js"></script>
+    <script src="js/site-basic.js"></script>
+    <script src="js/site-contacts.js"></script>
+    <script src="js/site-products.js"></script>
+    <script src="js/site-household.js"></script>
+    <script src="js/site-common.js"></script>
+</body>
+</html>
