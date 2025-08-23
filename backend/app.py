@@ -14,7 +14,7 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization", "User-Agent", "Accept", "Accept-Language", "Accept-Encoding"], "expose_headers": ["Content-Type", "Authorization"]}})
 
 # Supabase 클라이언트 초기화
 supabase_url = os.getenv('SUPABASE_URL')
@@ -58,6 +58,7 @@ app.register_blueprint(sites_bp, url_prefix='/')
 # 정적 파일 서빙
 @app.route('/')
 def serve_index():
+    print(f"🔍 메인 페이지 접속: {request.remote_addr} - User-Agent: {request.headers.get('User-Agent', 'Unknown')}")
     return send_from_directory('../frontend', 'index.html')
 
 @app.route('/<path:path>')
@@ -65,4 +66,8 @@ def serve_static(path):
     return send_from_directory('../frontend', path)
 
 if __name__ == '__main__':
+    print("🚀 Flask 서버 시작 중...")
+    print("📡 서버 주소: http://0.0.0.0:5000")
+    print("🔧 디버그 모드: 활성화")
+    print("🌐 CORS: 모든 도메인 허용")
     app.run(debug=True, host='0.0.0.0', port=5000)

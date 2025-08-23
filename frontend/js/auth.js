@@ -1,5 +1,5 @@
 // API 기본 URL
-const API_BASE_URL = 'http://localhost:5000';
+const API_BASE_URL = 'http://10.72.198.167:5000';
 
 // 토큰 관리
 const TokenManager = {
@@ -38,6 +38,11 @@ async function apiRequest(endpoint, options = {}) {
     
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
+    }
+    
+    // body가 있을 때 JSON.stringify 적용
+    if (options.body && typeof options.body === 'object') {
+        options.body = JSON.stringify(options.body);
     }
     
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {

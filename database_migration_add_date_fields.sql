@@ -1,22 +1,28 @@
--- 홈 네트워크 관리 시스템 데이터베이스 마이그레이션
--- 날짜 필드 추가 (등록일, 납품예정, 준공일, 상세주소)
+-- Supabase DB 마이그레이션: sites 테이블에 날짜 필드 추가
+-- 실행 전 반드시 백업을 수행하세요!
 
--- sites 테이블에 새로운 필드들 추가
+-- 1. sites 테이블에 새로운 날짜 컬럼들 추가
 ALTER TABLE sites 
-ADD COLUMN detail_address TEXT,
-ADD COLUMN registration_date DATE,
-ADD COLUMN delivery_date DATE,
-ADD COLUMN completion_date DATE;
+ADD COLUMN IF NOT EXISTS registration_date DATE,
+ADD COLUMN IF NOT EXISTS delivery_date DATE,
+ADD COLUMN IF NOT EXISTS completion_date DATE;
 
--- 기존 데이터에 대한 기본값 설정 (필요한 경우)
-UPDATE sites SET 
-    detail_address = '' WHERE detail_address IS NULL,
-    registration_date = NULL WHERE registration_date IS NULL,
-    delivery_date = NULL WHERE delivery_date IS NULL,
-    completion_date = NULL WHERE completion_date IS NULL;
+-- 2. 기존 데이터 확인 (선택사항)
+-- SELECT id, site_name, registration_date, delivery_date, completion_date FROM sites LIMIT 5;
 
--- 필드 설명 추가 (PostgreSQL의 경우)
-COMMENT ON COLUMN sites.detail_address IS '상세주소';
-COMMENT ON COLUMN sites.registration_date IS '등록일';
-COMMENT ON COLUMN sites.delivery_date IS '납품예정일';
-COMMENT ON COLUMN sites.completion_date IS '준공일';
+-- 3. 컬럼 추가 확인
+-- \d sites
+
+-- 4. 인덱스 추가 (선택사항 - 날짜 검색 성능 향상)
+CREATE INDEX IF NOT EXISTS idx_sites_registration_date ON sites(registration_date);
+CREATE INDEX IF NOT EXISTS idx_sites_delivery_date ON sites(delivery_date);
+CREATE INDEX IF NOT EXISTS idx_sites_completion_date ON sites(completion_date);
+
+-- 5. 마이그레이션 완료 메시지
+DO $$
+BEGIN
+    RAISE NOTICE '✅ sites 테이블에 날짜 필드 추가 완료!';
+    RAISE NOTICE '   - registration_date (등록일)';
+    RAISE NOTICE '   - delivery_date (납품예정)';
+    RAISE NOTICE '   - completion_date (준공일)';
+END $$;

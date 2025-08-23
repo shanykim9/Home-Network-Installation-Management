@@ -35,7 +35,6 @@
       return;
     }
     const payload = {
-      registration_no: document.getElementById('contacts-registration-no').value,
       project_no: document.getElementById('contacts-project-no').value,
       pm_name: document.getElementById('pm_name').value.trim() || null,
       pm_phone: document.getElementById('pm_phone').value.trim() || null,

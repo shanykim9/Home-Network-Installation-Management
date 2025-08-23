@@ -46,21 +46,21 @@
         product_type:'wallpad', 
         product_model: document.getElementById('wallpad_model').value || null, 
         quantity: parseInt(document.getElementById('wallpad_qty').value||'0',10),
-        registration_no: document.getElementById('products-registration-no').value,
+
         project_no: document.getElementById('products-project-no').value
       },
       { 
         product_type:'doorphone', 
         product_model: document.getElementById('doorphone_model').value || null, 
         quantity: parseInt(document.getElementById('doorphone_qty').value||'0',10),
-        registration_no: document.getElementById('products-registration-no').value,
+
         project_no: document.getElementById('products-project-no').value
       },
       { 
         product_type:'lobbyphone', 
         product_model: document.getElementById('lobbyphone_model').value || null, 
         quantity: parseInt(document.getElementById('lobbyphone_model').value||'0',10),
-        registration_no: document.getElementById('products-registration-no').value,
+
         project_no: document.getElementById('products-project-no').value
       }
     ];

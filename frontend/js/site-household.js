@@ -46,21 +46,21 @@
         integration_type:'lighting_sw', 
         enabled: document.getElementById('lighting_enabled').value, 
         company_name: document.getElementById('lighting_company').value || null,
-        registration_no: document.getElementById('household-registration-no').value,
+
         project_no: document.getElementById('household-project-no').value
       },
       { 
         integration_type:'standby_power_sw', 
         enabled: document.getElementById('standby_enabled').value, 
         company_name: document.getElementById('standby_company').value || null,
-        registration_no: document.getElementById('household-registration-no').value,
+
         project_no: document.getElementById('household-project-no').value
       },
       { 
         integration_type:'gas_detector', 
         enabled: document.getElementById('gas_enabled').value, 
         company_name: document.getElementById('gas_company').value || null,
-        registration_no: document.getElementById('household-registration-no').value,
+
         project_no: document.getElementById('household-project-no').value
       }
     ];

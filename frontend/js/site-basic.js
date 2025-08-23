@@ -37,14 +37,72 @@
     }
   };
 
+  // 프로젝트 번호 중복 체크
+  async function checkProjectNoDuplicate(projectNo) {
+    try {
+      console.log('🔍 중복 체크 요청:', projectNo);
+      const res = await apiRequest('/check-project-no', {
+        method: 'POST',
+        body: JSON.stringify({ project_no: projectNo })
+      });
+      
+      if (res.is_duplicate) {
+        // 중복인 경우
+        Swal.fire({
+          title: '중복된 프로젝트 번호',
+          html: `${res.message}<br><br><strong>기존 현장:</strong> ${res.existing_site.site_name}`,
+          icon: 'warning',
+          confirmButtonText: '확인'
+        });
+        return false;
+      } else {
+        // 사용 가능한 경우
+        Swal.fire({
+          title: '프로젝트 번호 확인',
+          text: res.message,
+          icon: 'success',
+          timer: 2000,
+          showConfirmButton: false
+        });
+        return true;
+      }
+    } catch (err) {
+      console.error('중복 체크 오류:', err);
+      Swal.fire('오류', '프로젝트 번호 중복 체크 중 오류가 발생했습니다.', 'error');
+      return false;
+    }
+  }
+
+  // 프로젝트 번호 입력 시 실시간 중복 체크
+  window.checkProjectNoOnInput = function() {
+    const prefix = document.getElementById('project-no-prefix').value;
+    const number = document.getElementById('project-no-number').value;
+    
+    // 4자리 숫자가 모두 입력되었을 때만 중복 체크
+    if (number.length === 4) {
+      const projectNo = prefix + number;
+      checkProjectNoDuplicate(projectNo);
+    }
+  };
+
   async function loadBasic(){
     const siteId = getSelectedSiteId();
     if(!siteId) return;
     try{
       const res = await apiRequest(`/sites/${siteId}`, { method: 'GET' });
       const s = res.site || {};
-      document.getElementById('registration-no').value = s.registration_no || '';
-      document.getElementById('project-no').value = s.project_no || '';
+      // 프로젝트 No. 로드
+      if (s.project_no) {
+        const prefix = s.project_no.substring(0, 3); // "NA/" 또는 "NE/"
+        const number = s.project_no.substring(3); // "1234"
+        
+        document.getElementById('project-no-prefix').value = prefix;
+        document.getElementById('project-no-number').value = number;
+      } else {
+        // 기본값 설정
+        document.getElementById('project-no-prefix').value = 'NA/';
+        document.getElementById('project-no-number').value = '';
+      }
       document.getElementById('construction-company').value = s.construction_company || '';
       document.getElementById('site-name').value = s.site_name || '';
       document.getElementById('address').value = s.address || '';
@@ -72,19 +130,41 @@
   async function saveBasic(e){
     e.preventDefault();
     const siteId = getSelectedSiteId();
+    // 프로젝트 No. 조합
+    const prefix = document.getElementById('project-no-prefix').value;
+    const number = document.getElementById('project-no-number').value;
+    const projectNo = prefix + number;
+    
     const body = {
-      project_no: document.getElementById('project-no').value,
+      project_no: projectNo,
       construction_company: document.getElementById('construction-company').value,
       site_name: document.getElementById('site-name').value,
       address: document.getElementById('address').value,
       detail_address: document.getElementById('detail-address').value,
       household_count: parseInt(document.getElementById('household-count').value||'0',10),
-      registration_date: document.getElementById('registration-date').value,
-      delivery_date: document.getElementById('delivery-date').value,
-      completion_date: document.getElementById('completion-date').value,
+      registration_date: document.getElementById('registration-date').value || null,
+      delivery_date: document.getElementById('delivery-date').value || null,
+      completion_date: document.getElementById('completion-date').value || null,
       certification_audit: document.getElementById('certification-audit').value || 'N',
       home_iot: document.getElementById('home-iot').value || 'N'
     };
+
+    // 프로젝트 No. 형식 검사
+    const pattern = /^(NA|NE)\/\d{4}$/;
+    if(!pattern.test(projectNo.trim())){
+      Swal.fire('안내','프로젝트 No.는 NA/ 또는 NE/로 시작하고 4자리 숫자여야 합니다.','info');
+      document.getElementById('project-no-number').focus();
+      return;
+    }
+
+    // 신규 등록 시에만 중복 체크 (수정 시에는 중복 체크하지 않음)
+    if (!siteId) {
+      const isDuplicate = await checkProjectNoDuplicate(projectNo);
+      if (isDuplicate === false) {
+        // 중복인 경우 저장 중단
+        return;
+      }
+    }
 
     try{
       if(siteId){
@@ -92,10 +172,7 @@
         Swal.fire({icon:'success', title:'기본정보 수정 완료', timer:1500, showConfirmButton:false});
       }else{
         // 신규 등록 전 다음 등록번호 미리 조회하여 표시(서버는 실제 저장 시에도 자동 증가 처리)
-        try{
-          const next = await apiRequest('/sites/next-registration-no', { method: 'GET' });
-          document.getElementById('registration-no').value = next.next_registration_no || '';
-        }catch(_){/* 무시 */}
+        // 등록번호는 제거됨
         await apiRequest('/sites', { method: 'POST', body: JSON.stringify(body) });
         Swal.fire({icon:'success', title:'현장 등록 완료', timer:1500, showConfirmButton:false});
         if(window.loadSitesIntoSelect){ window.loadSitesIntoSelect(); }
@@ -110,6 +187,32 @@
     const select = document.getElementById('site-select');
     if(select){ select.addEventListener('change', loadBasic); }
     const form = document.getElementById('site-form');
-    if(form){ form.addEventListener('submit', saveBasic); }
+    if(form){ 
+      // 제출은 최종 저장이므로 여기서는 임시 저장 용도로만 사용하지 않음
+      form.addEventListener('submit', saveBasic); 
+    }
+    // 탭 이동 시 임시 저장을 위해 필드 변경 이벤트 등록
+    ['project-no','construction-company','site-name','address','detail-address','household-count','registration-date','delivery-date','completion-date','certification-audit','home-iot']
+      .forEach(id=>{
+        const el = document.getElementById(id);
+        if(el){
+          el.addEventListener('change', ()=>{
+            const temp = {
+              project_no: document.getElementById('project-no').value,
+              construction_company: document.getElementById('construction-company').value,
+              site_name: document.getElementById('site-name').value,
+              address: document.getElementById('address').value,
+              detail_address: document.getElementById('detail-address').value,
+              household_count: document.getElementById('household-count').value,
+              registration_date: document.getElementById('registration-date').value,
+              delivery_date: document.getElementById('delivery-date').value,
+              completion_date: document.getElementById('completion-date').value,
+              certification_audit: document.getElementById('certification-audit').value || 'N',
+              home_iot: document.getElementById('home-iot').value || 'N'
+            };
+            try{ if(window.saveToTempStorage){ window.saveToTempStorage('basic', temp); } }catch(_){}
+          });
+        }
+      });
   });
 })();

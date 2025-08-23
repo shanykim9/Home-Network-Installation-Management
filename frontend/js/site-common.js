@@ -44,21 +44,21 @@
         integration_type:'parking_control', 
         enabled: document.getElementById('parking_enabled').value, 
         company_name: document.getElementById('parking_company').value || null,
-        registration_no: document.getElementById('common-registration-no').value,
+
         project_no: document.getElementById('common-project-no').value
       },
       { 
         integration_type:'remote_metering', 
         enabled: document.getElementById('metering_enabled').value, 
         company_name: document.getElementById('metering_company').value || null,
-        registration_no: document.getElementById('common-registration-no').value,
+
         project_no: document.getElementById('common-project-no').value
       },
       { 
         integration_type:'cctv', 
         enabled: document.getElementById('cctv_enabled').value, 
         company_name: document.getElementById('cctv_company').value || null,
-        registration_no: document.getElementById('common-registration-no').value,
+
         project_no: document.getElementById('common-project-no').value
       }
     ];

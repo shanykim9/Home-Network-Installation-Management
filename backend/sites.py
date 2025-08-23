@@ -11,7 +11,16 @@ load_dotenv()
 # Supabase 클라이언트 초기화
 supabase_url = os.getenv('SUPABASE_URL')
 supabase_key = os.getenv('SUPABASE_ANON_KEY')
+
+print(f"🌐 Supabase URL: {supabase_url}")
+print(f"🔑 Supabase Key: {supabase_key[:20]}..." if supabase_key else "❌ Supabase Key 없음")
+
+if not supabase_url or not supabase_key:
+    print("❌ Supabase 환경 변수가 설정되지 않았습니다!")
+    raise ValueError("SUPABASE_URL과 SUPABASE_ANON_KEY가 필요합니다.")
+
 supabase: Client = create_client(supabase_url, supabase_key)
+print("✅ Supabase 클라이언트 초기화 완료")
 
 # JWT 토큰 검증 함수
 def verify_token(token):
@@ -48,18 +57,10 @@ def create_site():
             if not data.get(field):
                 return jsonify({'error': f'{field}는 필수 입력 항목입니다.'}), 400
         
-        # 등록번호 자동 생성 (숫자 증가)
-        existing_sites = supabase.table('sites').select('registration_no').order('registration_no', desc=True).limit(1).execute()
-        
-        if existing_sites.data:
-            last_reg_no = existing_sites.data[0]['registration_no']
-            new_reg_no = last_reg_no + 1
-        else:
-            new_reg_no = 1
+        # 등록번호는 더 이상 사용하지 않음
         
         # 현장 데이터 생성
         site_data = {
-            'registration_no': new_reg_no,
             'project_no': data['project_no'],
             'construction_company': data['construction_company'],
             'site_name': data['site_name'],
@@ -105,9 +106,9 @@ def get_sites():
         
         # 관리자는 모든 현장 조회, 일반사용자는 본인이 등록한 현장만 조회
         if payload['user_role'] == 'admin':
-            sites = supabase.table('sites').select('*').order('registration_no', desc=True).execute()
+            sites = supabase.table('sites').select('*').order('id', desc=True).execute()
         else:
-            sites = supabase.table('sites').select('*').eq('created_by', payload['user_id']).order('registration_no', desc=True).execute()
+            sites = supabase.table('sites').select('*').eq('created_by', payload['user_id']).order('id', desc=True).execute()
         
         return jsonify({'sites': sites.data}), 200
         
@@ -150,8 +151,15 @@ def get_site_detail(site_id):
 @sites_bp.route('/sites/<int:site_id>', methods=['PATCH','PUT'])
 def update_site(site_id):
     try:
+        print(f"🔧 현장 수정 요청: ID {site_id}")
+        print(f"📝 요청 데이터: {request.get_json()}")
+        print(f"🔑 인증 헤더: {request.headers.get('Authorization', '없음')}")
+        print(f"🌐 Supabase URL: {supabase_url}")
+        print(f"🔑 Supabase Key: {supabase_key[:20]}..." if supabase_key else "❌ Supabase Key 없음")
+        
         auth_header = request.headers.get('Authorization')
         if not auth_header:
+            print("❌ 인증 헤더 없음")
             return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
         token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
         payload = verify_token(token)
@@ -160,11 +168,20 @@ def update_site(site_id):
             return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
         
         # 권한 확인
-        site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
+        print(f"🔍 권한 확인 중: site_id={site_id}")
+        try:
+            site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
+            print(f"✅ 권한 확인 성공: {site.data}")
+        except Exception as db_error:
+            print(f"❌ 권한 확인 실패: {db_error}")
+            return jsonify({'error': f'데이터베이스 연결 오류: {str(db_error)}'}), 500
+            
         if not site.data:
+            print("❌ 현장을 찾을 수 없음")
             return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
         site_info = site.data[0]
         if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
+            print("❌ 접근 권한 없음")
             return jsonify({'error': '접근 권한이 없습니다.'}), 403
         
         data = request.get_json()
@@ -175,9 +192,9 @@ def update_site(site_id):
             'address': data.get('address'),
             'detail_address': data.get('detail_address'),
             'household_count': data.get('household_count'),
-            'registration_date': data.get('registration_date'),
-            'delivery_date': data.get('delivery_date'),
-            'completion_date': data.get('completion_date'),
+            'registration_date': data.get('registration_date') if data.get('registration_date') else None,
+            'delivery_date': data.get('delivery_date') if data.get('delivery_date') else None,
+            'completion_date': data.get('completion_date') if data.get('completion_date') else None,
             'certification_audit': data.get('certification_audit'),
             'home_iot': data.get('home_iot'),
             'updated_at': datetime.utcnow().isoformat()
@@ -185,8 +202,14 @@ def update_site(site_id):
         
         # None 값 제거
         update_data = {k: v for k, v in update_data.items() if v is not None}
+        print(f"📝 업데이트할 데이터: {update_data}")
         
-        result = supabase.table('sites').update(update_data).eq('id', site_id).execute()
+        try:
+            result = supabase.table('sites').update(update_data).eq('id', site_id).execute()
+            print(f"✅ 데이터베이스 업데이트 성공: {result.data}")
+        except Exception as update_error:
+            print(f"❌ 데이터베이스 업데이트 실패: {update_error}")
+            return jsonify({'error': f'데이터베이스 업데이트 오류: {str(update_error)}'}), 500
         
         if result.data:
             return jsonify({'message': '현장 정보가 수정되었습니다.', 'site': result.data[0]}), 200
@@ -219,10 +242,14 @@ def get_site_contacts(site_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# 현장 연락처 저장(업서트)
-@sites_bp.route('/sites/<int:site_id>/contacts', methods=['POST'])
-def upsert_site_contacts(site_id):
+# 현장 제품수량 저장(업서트) - 프론트엔드용
+@sites_bp.route('/sites/<int:site_id>/products', methods=['POST'])
+def upsert_site_products(site_id):
     try:
+        print(f"🔍 제품수량 저장 요청 - 현장 ID: {site_id}")
+        print(f"📝 Raw 데이터: {request.get_data()}")
+        print(f"📝 Content-Type: {request.headers.get('Content-Type', '없음')}")
+        
         auth_header = request.headers.get('Authorization')
         if not auth_header:
             return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
@@ -230,6 +257,15 @@ def upsert_site_contacts(site_id):
         payload = verify_token(token)
         if not payload:
             return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+        
+        # JSON 데이터 안전하게 파싱
+        try:
+            data = request.get_json()
+            print(f"📝 파싱된 JSON 데이터: {data}")
+        except Exception as json_error:
+            print(f"❌ JSON 파싱 오류: {json_error}")
+            return jsonify({'error': '잘못된 JSON 형식입니다.'}), 400
+        
         # 권한 확인
         site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
         if not site.data:
@@ -237,10 +273,76 @@ def upsert_site_contacts(site_id):
         site_info = site.data[0]
         if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
             return jsonify({'error': '접근 권한이 없습니다.'}), 403
-        data = request.get_json() or {}
+        
         payload_data = {
             'site_id': site_id,
-            'registration_no': data.get('registration_no'),
+            'project_no': data.get('project_no'),
+            'wallpad_model': data.get('wallpad_model'),
+            'wallpad_qty': data.get('wallpad_qty', 0),
+            'doorphone_model': data.get('doorphone_model'),
+            'doorphone_qty': data.get('doorphone_qty', 0),
+            'lobbyphone_model': data.get('lobbyphone_model'),
+            'lobbyphone_qty': data.get('lobbyphone_qty', 0),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        # None 값 제거
+        payload_data = {k: v for k, v in payload_data.items() if v is not None}
+        print(f"💾 저장할 데이터: {payload_data}")
+        
+        existing = supabase.table('site_products').select('id').eq('site_id', site_id).limit(1).execute()
+        if existing.data:
+            # 기존 데이터 업데이트
+            result = supabase.table('site_products').update(payload_data).eq('id', existing.data[0]['id']).execute()
+        else:
+            # 새 데이터 삽입
+            payload_data['created_at'] = datetime.utcnow().isoformat()
+            result = supabase.table('site_products').insert(payload_data).execute()
+        
+        print(f"✅ 제품수량 저장 성공: {result.data[0] if result.data else 'None'}")
+        if result.data:
+            return jsonify({'message': '제품수량 정보가 저장되었습니다.', 'products': result.data[0]}), 200
+        else:
+            return jsonify({'error': '제품수량 정보 저장 중 오류가 발생했습니다.'}), 500
+            
+    except Exception as e:
+        print(f"❌ 제품수량 저장 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# 현장 연락처 저장(업서트)
+@sites_bp.route('/sites/<int:site_id>/contacts', methods=['POST'])
+def upsert_site_contacts(site_id):
+    try:
+        print(f"🔍 연락처 저장 요청 - 현장 ID: {site_id}")
+        print(f"📝 Raw 데이터: {request.get_data()}")
+        print(f"📝 Content-Type: {request.headers.get('Content-Type', '없음')}")
+        
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+        
+        # JSON 데이터 안전하게 파싱
+        try:
+            data = request.get_json()
+            print(f"📝 파싱된 JSON 데이터: {data}")
+        except Exception as json_error:
+            print(f"❌ JSON 파싱 오류: {json_error}")
+            return jsonify({'error': '잘못된 JSON 형식입니다.'}), 400
+        
+        # 권한 확인
+        site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
+        if not site.data:
+            return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
+        site_info = site.data[0]
+        if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
+            return jsonify({'error': '접근 권한이 없습니다.'}), 403
+        
+        payload_data = {
+            'site_id': site_id,
             'project_no': data.get('project_no'),
             'pm_name': data.get('pm_name'),
             'pm_phone': data.get('pm_phone'),
@@ -252,15 +354,24 @@ def upsert_site_contacts(site_id):
             'installer_phone': data.get('installer_phone'),
             'network_manager_name': data.get('network_manager_name'),
             'network_manager_phone': data.get('network_manager_phone'),
+            'updated_at': datetime.utcnow().isoformat()
         }
+        
+        # None 값 제거
+        payload_data = {k: v for k, v in payload_data.items() if v is not None}
+        print(f"💾 저장할 데이터: {payload_data}")
+        
         existing = supabase.table('site_contacts').select('id').eq('site_id', site_id).limit(1).execute()
         if existing.data:
             contact_id = existing.data[0]['id']
             result = supabase.table('site_contacts').update(payload_data).eq('id', contact_id).execute()
         else:
             result = supabase.table('site_contacts').insert(payload_data).execute()
+        
+        print(f"✅ 연락처 저장 성공: {result.data[0] if result.data else 'None'}")
         return jsonify({'message': '연락처가 저장되었습니다.', 'contacts': result.data[0]}), 200
     except Exception as e:
+        print(f"❌ 연락처 저장 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # 세대부연동 조회 (조명SW/대기전력SW/가스감지기)
@@ -317,7 +428,7 @@ def upsert_household_integrations(site_id):
                 continue
             payload_data = {
                 'site_id': site_id,
-                'registration_no': item.get('registration_no'),
+                # registration_no는 더 이상 사용하지 않음
                 'project_no': item.get('project_no'),
                 'integration_type': itype,
                 'enabled': (item.get('enabled') or 'N'),
@@ -360,6 +471,140 @@ def get_common_integrations(site_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# 현장 세대부연동 저장(업서트) - 프론트엔드용
+@sites_bp.route('/sites/<int:site_id>/household', methods=['POST'])
+def upsert_site_household(site_id):
+    try:
+        print(f"🔍 세대부연동 저장 요청 - 현장 ID: {site_id}")
+        print(f"📝 Raw 데이터: {request.get_data()}")
+        print(f"📝 Content-Type: {request.headers.get('Content-Type', '없음')}")
+        
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+        
+        # JSON 데이터 안전하게 파싱
+        try:
+            data = request.get_json()
+            print(f"📝 파싱된 JSON 데이터: {data}")
+        except Exception as json_error:
+            print(f"❌ JSON 파싱 오류: {json_error}")
+            return jsonify({'error': '잘못된 JSON 형식입니다.'}), 400
+        
+        # 권한 확인
+        site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
+        if not site.data:
+            return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
+        site_info = site.data[0]
+        if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
+            return jsonify({'error': '접근 권한이 없습니다.'}), 403
+        
+        payload_data = {
+            'site_id': site_id,
+            'project_no': data.get('project_no'),
+            'lighting_enabled': data.get('lighting_enabled', 'N'),
+            'lighting_company': data.get('lighting_company'),
+            'standby_enabled': data.get('standby_enabled', 'N'),
+            'standby_company': data.get('standby_company'),
+            'gas_enabled': data.get('gas_enabled', 'N'),
+            'gas_company': data.get('gas_company'),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        # None 값 제거
+        payload_data = {k: v for k, v in payload_data.items() if v is not None}
+        print(f"💾 저장할 데이터: {payload_data}")
+        
+        existing = supabase.table('site_household_integrations').select('id').eq('site_id', site_id).limit(1).execute()
+        if existing.data:
+            # 기존 데이터 업데이트
+            result = supabase.table('site_household_integrations').update(payload_data).eq('id', existing.data[0]['id']).execute()
+        else:
+            # 새 데이터 삽입
+            payload_data['created_at'] = datetime.utcnow().isoformat()
+            result = supabase.table('site_household_integrations').insert(payload_data).execute()
+        
+        print(f"✅ 세대부연동 저장 성공: {result.data[0] if result.data else 'None'}")
+        if result.data:
+            return jsonify({'message': '세대부연동 정보가 저장되었습니다.', 'household': result.data[0]}), 200
+        else:
+            return jsonify({'error': '세대부연동 정보 저장 중 오류가 발생했습니다.'}), 500
+            
+    except Exception as e:
+        print(f"❌ 세대부연동 저장 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# 현장 공용부연동 저장(업서트) - 프론트엔드용
+@sites_bp.route('/sites/<int:site_id>/common', methods=['POST'])
+def upsert_site_common(site_id):
+    try:
+        print(f"🔍 공용부연동 저장 요청 - 현장 ID: {site_id}")
+        print(f"📝 Raw 데이터: {request.get_data()}")
+        print(f"📝 Content-Type: {request.headers.get('Content-Type', '없음')}")
+        
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+        
+        # JSON 데이터 안전하게 파싱
+        try:
+            data = request.get_json()
+            print(f"📝 파싱된 JSON 데이터: {data}")
+        except Exception as json_error:
+            print(f"❌ JSON 파싱 오류: {json_error}")
+            return jsonify({'error': '잘못된 JSON 형식입니다.'}), 400
+        
+        # 권한 확인
+        site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
+        if not site.data:
+            return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
+        site_info = site.data[0]
+        if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
+            return jsonify({'error': '접근 권한이 없습니다.'}), 403
+        
+        payload_data = {
+            'site_id': site_id,
+            'project_no': data.get('project_no'),
+            'parking_enabled': data.get('parking_enabled', 'N'),
+            'parking_company': data.get('parking_company'),
+            'metering_enabled': data.get('metering_enabled', 'N'),
+            'metering_company': data.get('metering_company'),
+            'cctv_enabled': data.get('cctv_enabled', 'N'),
+            'cctv_company': data.get('cctv_company'),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        # None 값 제거
+        payload_data = {k: v for k, v in payload_data.items() if v is not None}
+        print(f"💾 저장할 데이터: {payload_data}")
+        
+        existing = supabase.table('site_common_integrations').select('id').eq('site_id', site_id).limit(1).execute()
+        if existing.data:
+            # 기존 데이터 업데이트
+            result = supabase.table('site_common_integrations').update(payload_data).eq('id', existing.data[0]['id']).execute()
+        else:
+            # 새 데이터 삽입
+            payload_data['created_at'] = datetime.utcnow().isoformat()
+            result = supabase.table('site_common_integrations').insert(payload_data).execute()
+        
+        print(f"✅ 공용부연동 저장 성공: {result.data[0] if result.data else 'None'}")
+        if result.data:
+            return jsonify({'message': '공용부연동 정보가 저장되었습니다.', 'common': result.data[0]}), 200
+        else:
+            return jsonify({'error': '공용부연동 정보 저장 중 오류가 발생했습니다.'}), 500
+            
+    except Exception as e:
+        print(f"❌ 공용부연동 저장 오류: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 # 공용부연동 저장(업서트)
 @sites_bp.route('/sites/<int:site_id>/integrations/common', methods=['POST'])
 def upsert_common_integrations(site_id):
@@ -389,7 +634,7 @@ def upsert_common_integrations(site_id):
                 continue
             payload_data = {
                 'site_id': site_id,
-                'registration_no': item.get('registration_no'),
+                # registration_no는 더 이상 사용하지 않음
                 'project_no': item.get('project_no'),
                 'integration_type': itype,
                 'enabled': (item.get('enabled') or 'N'),
@@ -430,48 +675,68 @@ def get_site_products(site_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# 제품수량 저장(업서트, 월패드/도어폰/로비폰)
-@sites_bp.route('/sites/<int:site_id>/products', methods=['POST'])
-def upsert_site_products(site_id):
+
+
+# 프로젝트 번호 중복 체크
+@sites_bp.route('/check-project-no', methods=['POST'])
+def check_project_no():
     try:
+        print(f"🔍 프로젝트 번호 중복 체크 요청")
+        print(f"🔑 인증 헤더: {request.headers.get('Authorization', '없음')}")
+        print(f"📝 Content-Type: {request.headers.get('Content-Type', '없음')}")
+        print(f"📝 Raw 데이터: {request.get_data()}")
+        
+        # JSON 데이터 안전하게 파싱
+        try:
+            data = request.get_json()
+            print(f"📝 파싱된 JSON 데이터: {data}")
+        except Exception as json_error:
+            print(f"❌ JSON 파싱 오류: {json_error}")
+            return jsonify({'error': '잘못된 JSON 형식입니다.'}), 400
+        
+        # 인증 확인
         auth_header = request.headers.get('Authorization')
         if not auth_header:
+            print("❌ 인증 헤더 없음")
             return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        
         token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
         payload = verify_token(token)
+        
         if not payload:
             return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
-        # 권한 확인
-        site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
-        if not site.data:
-            return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
-        site_info = site.data[0]
-        if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
-            return jsonify({'error': '접근 권한이 없습니다.'}), 403
-
-        data = request.get_json() or {}
-        items = data.get('items', [])
-        saved = []
-        for item in items:
-            ptype = item.get('product_type')
-            if ptype not in ['wallpad','doorphone','lobbyphone']:
-                continue
-            payload_data = {
-                'site_id': site_id,
-                'registration_no': item.get('registration_no'),
-                'project_no': item.get('project_no'),
-                'product_type': ptype,
-                'product_model': item.get('product_model'),
-                'quantity': item.get('quantity') or 0,
-            }
-            existing = supabase.table('site_products').select('id').eq('site_id', site_id).eq('product_type', ptype).limit(1).execute()
-            if existing.data:
-                pid = existing.data[0]['id']
-                res = supabase.table('site_products').update(payload_data).eq('id', pid).execute()
-            else:
-                res = supabase.table('site_products').insert(payload_data).execute()
-            if res.data:
-                saved.append(res.data[0])
-        return jsonify({'message': '제품수량이 저장되었습니다.', 'products': saved}), 200
+        
+        data = request.get_json()
+        project_no = data.get('project_no')
+        
+        if not project_no:
+            return jsonify({'error': '프로젝트 번호가 필요합니다.'}), 400
+        
+        # 프로젝트 번호 형식 검증 (NA/XXXX 또는 NE/XXXX)
+        import re
+        if not re.match(r'^(NA|NE)/\d{4}$', project_no):
+            return jsonify({'error': '프로젝트 번호 형식이 올바르지 않습니다. (예: NA/1234, NE/5678)'}), 400
+        
+        # 중복 체크
+        existing = supabase.table('sites').select('id, site_name').eq('project_no', project_no).execute()
+        
+        if existing.data:
+            return jsonify({
+                'is_duplicate': True,
+                'message': f'프로젝트 번호 "{project_no}"가 이미 사용 중입니다.',
+                'existing_site': existing.data[0]
+            }), 200
+        else:
+            return jsonify({
+                'is_duplicate': False,
+                'message': f'프로젝트 번호 "{project_no}"를 사용할 수 있습니다.'
+            }), 200
+            
     except Exception as e:
+        print(f"❌ 프로젝트 번호 중복 체크 오류: {str(e)}")
+        print(f"🔍 오류 타입: {type(e).__name__}")
+        import traceback
+        print(f"📚 스택 트레이스: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
+
+
