@@ -50,7 +50,7 @@
     try{
       await apiRequest(`/sites/${siteId}/contacts`, {
         method: 'POST',
-        body: JSON.stringify(payload)
+        body: payload
       });
       Swal.fire({ icon:'success', title:'저장 완료', timer:1500, showConfirmButton:false });
       loadContacts();

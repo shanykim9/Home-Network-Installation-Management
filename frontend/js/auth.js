@@ -1,5 +1,5 @@
-// API 기본 URL
-const API_BASE_URL = 'http://10.72.198.167:5000';
+// API 기본 URL - 상대 경로 사용
+const API_BASE_URL = '';
 
 // 토큰 관리
 const TokenManager = {
@@ -45,17 +45,31 @@ async function apiRequest(endpoint, options = {}) {
         options.body = JSON.stringify(options.body);
     }
     
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
-        headers
-    });
-    
-    if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || '요청 처리 중 오류가 발생했습니다.');
+    try {
+        const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+            ...options,
+            headers
+        });
+        
+        if (!response.ok) {
+            let errorMessage = '요청 처리 중 오류가 발생했습니다.';
+            try {
+                const error = await response.json();
+                errorMessage = error.error || errorMessage;
+            } catch (e) {
+                errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+            }
+            throw new Error(errorMessage);
+        }
+        
+        return response.json();
+    } catch (error) {
+        console.error('API 요청 오류:', error);
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            throw new Error('서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.');
+        }
+        throw error;
     }
-    
-    return response.json();
 }// 로그인 처리
 async function handleLogin(event) {
     event.preventDefault();
@@ -66,7 +80,7 @@ async function handleLogin(event) {
     try {
         const response = await apiRequest('/auth/login', {
             method: 'POST',
-            body: JSON.stringify({ email, password })
+            body: { email, password }
         });
         
         TokenManager.set(response.token);
@@ -103,7 +117,7 @@ async function handleRegister(event) {
     try {
         await apiRequest('/auth/register', {
             method: 'POST',
-            body: JSON.stringify({ name, email, phone, password, user_role })
+            body: { name, email, phone, password, user_role }
         });
         
         Swal.fire({

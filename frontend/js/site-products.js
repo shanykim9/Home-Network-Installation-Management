@@ -65,7 +65,7 @@
       }
     ];
     try{
-      await apiRequest(`/sites/${siteId}/products`, { method: 'POST', body: JSON.stringify({ items }) });
+      await apiRequest(`/sites/${siteId}/products`, { method: 'POST', body: { items } });
       Swal.fire({icon:'success', title:'저장 완료', timer:1500, showConfirmButton:false});
       loadProducts();
     }catch(err){

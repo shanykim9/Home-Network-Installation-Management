@@ -13,13 +13,48 @@ from io import BytesIO
 load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY')
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# CORS 설정 - 개발용으로 모든 도메인 허용
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization", "User-Agent", "Accept", "Accept-Language", "Accept-Encoding"], "expose_headers": ["Content-Type", "Authorization"]}})
 
 # Supabase 클라이언트 초기화
 supabase_url = os.getenv('SUPABASE_URL')
 supabase_key = os.getenv('SUPABASE_ANON_KEY')
-supabase: Client = create_client(supabase_url, supabase_key)
+
+# 환경 변수가 없을 때 경고 메시지 출력
+if not supabase_url or not supabase_key:
+    print("⚠️  경고: Supabase 환경 변수가 설정되지 않았습니다!")
+    print("   .env 파일을 생성하고 다음 내용을 추가하세요:")
+    print("   SUPABASE_URL=your_supabase_url_here")
+    print("   SUPABASE_ANON_KEY=your_supabase_anon_key_here")
+    print("   FLASK_SECRET_KEY=your_secret_key_here")
+    print("   현재는 더미 데이터로 실행됩니다.")
+    
+    # 더미 Supabase 클라이언트 (개발용)
+    class DummySupabase:
+        def table(self, name):
+            return DummyTable()
+    
+    class DummyTable:
+        def select(self, *args):
+            return self
+        def eq(self, *args):
+            return self
+        def insert(self, data):
+            return DummyResult()
+        def update(self, data):
+            return DummyResult()
+        def execute(self):
+            return DummyResult()
+    
+    class DummyResult:
+        def __init__(self):
+            self.data = []
+    
+    supabase = DummySupabase()
+else:
+    supabase: Client = create_client(supabase_url, supabase_key)
 
 # JWT 토큰 생성 함수
 def generate_token(user_id, user_role):

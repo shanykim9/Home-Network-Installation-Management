@@ -63,7 +63,7 @@
       }
     ];
     try{
-      await apiRequest(`/sites/${siteId}/integrations/common`, { method: 'POST', body: JSON.stringify({ items }) });
+      await apiRequest(`/sites/${siteId}/integrations/common`, { method: 'POST', body: { items } });
       Swal.fire({icon:'success', title:'저장 완료', timer:1500, showConfirmButton:false});
       loadCommon();
     }catch(err){

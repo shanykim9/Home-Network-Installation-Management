@@ -43,7 +43,7 @@
       console.log('🔍 중복 체크 요청:', projectNo);
       const res = await apiRequest('/check-project-no', {
         method: 'POST',
-        body: JSON.stringify({ project_no: projectNo })
+        body: { project_no: projectNo }
       });
       
       if (res.is_duplicate) {
@@ -168,12 +168,12 @@
 
     try{
       if(siteId){
-        await apiRequest(`/sites/${siteId}`, { method: 'PATCH', body: JSON.stringify(body) });
+        await apiRequest(`/sites/${siteId}`, { method: 'PATCH', body: body });
         Swal.fire({icon:'success', title:'기본정보 수정 완료', timer:1500, showConfirmButton:false});
       }else{
         // 신규 등록 전 다음 등록번호 미리 조회하여 표시(서버는 실제 저장 시에도 자동 증가 처리)
         // 등록번호는 제거됨
-        await apiRequest('/sites', { method: 'POST', body: JSON.stringify(body) });
+        await apiRequest('/sites', { method: 'POST', body: body });
         Swal.fire({icon:'success', title:'현장 등록 완료', timer:1500, showConfirmButton:false});
         if(window.loadSitesIntoSelect){ window.loadSitesIntoSelect(); }
       }
