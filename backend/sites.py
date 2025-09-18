@@ -63,6 +63,110 @@ def verify_token(token):
 
 sites_bp = Blueprint('sites', __name__)
 
+# 사용자 목록 조회 API (연락처용)
+@sites_bp.route('/users', methods=['GET'])
+def get_users():
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+
+        q = request.args.get('q')  # 검색어
+
+        query = supabase.table('users').select('id, name, phone, user_role')
+        rows = query.execute()
+        items = rows.data or []
+
+        # 더미 데이터인 경우 샘플 사용자 반환
+        if not items and (not supabase_url or not supabase_key):
+            items = [
+                {'id': 1, 'name': '홍길동', 'phone': '010-1234-5678', 'user_role': 'user'},
+                {'id': 2, 'name': '김영업', 'phone': '010-9876-5432', 'user_role': 'admin'},
+                {'id': 3, 'name': '이현장', 'phone': '010-5555-1234', 'user_role': 'user'},
+                {'id': 4, 'name': '박관리', 'phone': '010-7777-8888', 'user_role': 'admin'}
+            ]
+
+        # 간단한 서버측 필터링 (name 포함 검색)
+        if q:
+            ql = q.lower()
+            items = [it for it in items if (it.get('name','').lower().find(ql) >= 0)]
+
+        return jsonify({'items': items}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# 마스터 인명 조회 (역할별 필터 및 검색)
+@sites_bp.route('/contacts-master', methods=['GET'])
+def get_contacts_master():
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+
+        role = request.args.get('role')  # pm | sales | None
+        q = request.args.get('q')  # 검색어
+
+        query = supabase.table('contacts_master').select('*').eq('active', True)
+        if role in ['pm','sales']:
+            query = query.eq('role', role)
+        rows = query.execute()
+        items = rows.data or []
+
+        # 간단한 서버측 필터링 (name 포함 검색)
+        if q:
+            ql = q.lower()
+            items = [it for it in items if (it.get('name','').lower().find(ql) >= 0)]
+
+        return jsonify({'items': items}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# 마스터 인명 추가/수정 (관리자 전용)
+@sites_bp.route('/contacts-master', methods=['POST','PATCH'])
+def upsert_contacts_master():
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+        if payload.get('user_role') != 'admin':
+            return jsonify({'error': '관리자만 접근 가능합니다.'}), 403
+
+        data = request.get_json() or {}
+        # 기대 필드: id(optional), name, role(pm|sales), phone, active
+        item = {
+            'name': data.get('name'),
+            'role': data.get('role'),
+            'phone': data.get('phone'),
+            'active': data.get('active', True),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        if not item['name'] or item['role'] not in ['pm','sales']:
+            return jsonify({'error': 'name과 role(pm|sales)은 필수입니다.'}), 400
+
+        if data.get('id'):
+            # update
+            res = supabase.table('contacts_master').update(item).eq('id', data['id']).execute()
+        else:
+            # insert
+            item['created_at'] = datetime.utcnow().isoformat()
+            res = supabase.table('contacts_master').insert(item).execute()
+
+        return jsonify({'item': (res.data[0] if res.data else None)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # 현장 등록
 @sites_bp.route('/sites', methods=['POST'])
 def create_site():
@@ -694,7 +798,7 @@ def upsert_common_integrations(site_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# 제품수량 조회
+# 제품수량 조회 (평면 스키마: wallpad_*, doorphone_*, lobbyphone_*)
 @sites_bp.route('/sites/<int:site_id>/products', methods=['GET'])
 def get_site_products(site_id):
     try:
@@ -712,8 +816,8 @@ def get_site_products(site_id):
         site_info = site.data[0]
         if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
             return jsonify({'error': '접근 권한이 없습니다.'}), 403
-        products = supabase.table('site_products').select('*').eq('site_id', site_id).in_('product_type', ['wallpad','doorphone','lobbyphone']).execute()
-        return jsonify({'products': products.data or []}), 200
+        row = supabase.table('site_products').select('*').eq('site_id', site_id).limit(1).execute()
+        return jsonify({'products': (row.data[0] if row.data else None)}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

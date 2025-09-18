@@ -23,3 +23,16 @@ Thumbs.db
 
 # Frontend caches
 frontend/node_modules/
+
+# Node
+node_modules/
+
+# Android build
+android/**/build/
+android/.gradle/
+
+# Capacitor
+capacitor-cordova-android-plugins/build/
+
+# Logs
+*.log

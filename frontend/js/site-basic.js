@@ -169,13 +169,18 @@
     try{
       if(siteId){
         await apiRequest(`/sites/${siteId}`, { method: 'PATCH', body: body });
+        // 프로젝트 No 브로드캐스트
+        try{ if(window.updateAllTabsWithSiteInfo){ window.updateAllTabsWithSiteInfo({ project_no: body.project_no }); } }catch(_){ }
         Swal.fire({icon:'success', title:'기본정보 수정 완료', timer:1500, showConfirmButton:false});
       }else{
-        // 신규 등록 전 다음 등록번호 미리 조회하여 표시(서버는 실제 저장 시에도 자동 증가 처리)
-        // 등록번호는 제거됨
-        await apiRequest('/sites', { method: 'POST', body: body });
+        const createRes = await apiRequest('/sites', { method: 'POST', body: body });
+        const created = createRes.site || null;
         Swal.fire({icon:'success', title:'현장 등록 완료', timer:1500, showConfirmButton:false});
-        if(window.loadSitesIntoSelect){ window.loadSitesIntoSelect(); }
+        if(window.loadSitesIntoSelect){ await window.loadSitesIntoSelect(); }
+        // 선택 및 브로드캐스트
+        const select = document.getElementById('site-select');
+        if(created && created.id && select){ select.value = String(created.id); }
+        try{ if(window.updateAllTabsWithSiteInfo){ window.updateAllTabsWithSiteInfo(created || { project_no: body.project_no }); } }catch(_){ }
       }
     }catch(err){
       console.error(err);
@@ -215,4 +220,6 @@
         }
       });
   });
+  // 전역 노출: 현장 선택 시 순차 로드 체인에서 사용
+  window.loadBasic = loadBasic;
 })();

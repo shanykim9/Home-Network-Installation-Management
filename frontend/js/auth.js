@@ -86,6 +86,7 @@ async function handleLogin(event) {
         TokenManager.set(response.token);
         updateUserInfo(response.user);
         showMainDashboard();
+        try{ document.dispatchEvent(new CustomEvent('auth:ready')); }catch(e){}
         
         Swal.fire({
             icon: 'success',
@@ -188,6 +189,7 @@ async function checkAuthStatus() {
             const response = await apiRequest('/auth/profile');
             updateUserInfo(response.user);
             showMainDashboard();
+            try{ document.dispatchEvent(new CustomEvent('auth:ready')); }catch(e){}
         } catch (error) {
             TokenManager.remove();
             showAuthPage();

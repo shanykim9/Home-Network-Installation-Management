@@ -17,17 +17,12 @@
     if(!siteId) return;
     try{
       const res = await apiRequest(`/sites/${siteId}/products`, { method: 'GET' });
-      const list = res.products || [];
-      // 초기화
-      fillItem('wallpad','',0);
-      fillItem('doorphone','',0);
-      fillItem('lobbyphone','',0);
-      // 반영
-      list.forEach(p=>{
-        if(p.product_type==='wallpad') fillItem('wallpad', p.product_model, p.quantity);
-        if(p.product_type==='doorphone') fillItem('doorphone', p.product_model, p.quantity);
-        if(p.product_type==='lobbyphone') fillItem('lobbyphone', p.product_model, p.quantity);
-      });
+      // 백엔드가 단일 객체를 product로 반환하거나 products로 반환하는 경우 모두 대응
+      const row = (res.product || res.products || null);
+      // 초기화 후 단일 로우 반영
+      fillItem('wallpad', row?.wallpad_model || '', row?.wallpad_qty ?? 0);
+      fillItem('doorphone', row?.doorphone_model || '', row?.doorphone_qty ?? 0);
+      fillItem('lobbyphone', row?.lobbyphone_model || '', row?.lobbyphone_qty ?? 0);
     }catch(err){
       console.error(err);
       Swal.fire('오류','제품수량을 불러오지 못했습니다.','error');
@@ -35,38 +30,33 @@
   }
 
   async function saveProducts(e){
-    e.preventDefault();
+    e && e.preventDefault && e.preventDefault();
     const siteId = getSelectedSiteId();
     if(!siteId){
       Swal.fire('안내','먼저 상단의 "현장 선택"에서 현장을 선택하세요.','info');
       return;
     }
-    const items = [
-      { 
-        product_type:'wallpad', 
-        product_model: document.getElementById('wallpad_model').value || null, 
-        quantity: parseInt(document.getElementById('wallpad_qty').value||'0',10),
-
-        project_no: document.getElementById('products-project-no').value
-      },
-      { 
-        product_type:'doorphone', 
-        product_model: document.getElementById('doorphone_model').value || null, 
-        quantity: parseInt(document.getElementById('doorphone_qty').value||'0',10),
-
-        project_no: document.getElementById('products-project-no').value
-      },
-      { 
-        product_type:'lobbyphone', 
-        product_model: document.getElementById('lobbyphone_model').value || null, 
-        quantity: parseInt(document.getElementById('lobbyphone_model').value||'0',10),
-
-        project_no: document.getElementById('products-project-no').value
-      }
-    ];
+    const draft = {
+      project_no: document.getElementById('products-project-no').value,
+      wallpad_model: document.getElementById('wallpad_model').value,
+      wallpad_qty: document.getElementById('wallpad_qty').value,
+      doorphone_model: document.getElementById('doorphone_model').value,
+      doorphone_qty: document.getElementById('doorphone_qty').value,
+      lobbyphone_model: document.getElementById('lobbyphone_model').value,
+      lobbyphone_qty: document.getElementById('lobbyphone_qty').value,
+    };
+    const payload = {
+      project_no: draft.project_no,
+      wallpad_model: draft.wallpad_model || null,
+      wallpad_qty: parseInt(draft.wallpad_qty||'0',10),
+      doorphone_model: draft.doorphone_model || null,
+      doorphone_qty: parseInt(draft.doorphone_qty||'0',10),
+      lobbyphone_model: draft.lobbyphone_model || null,
+      lobbyphone_qty: parseInt(draft.lobbyphone_qty||'0',10),
+    };
     try{
-      await apiRequest(`/sites/${siteId}/products`, { method: 'POST', body: { items } });
-      Swal.fire({icon:'success', title:'저장 완료', timer:1500, showConfirmButton:false});
+      await apiRequest(`/sites/${siteId}/products`, { method: 'POST', body: payload });
+      if(!window.__batchSaving){ Swal.fire({icon:'success', title:'저장 완료', timer:1500, showConfirmButton:false}); }
       loadProducts();
     }catch(err){
       console.error(err);
@@ -80,4 +70,9 @@
     const select = document.getElementById('site-select');
     if(select){ select.addEventListener('change', loadProducts); }
   });
+
+  // 전역에서 호출 가능하도록 노출(현장 선택 트리거 등에서 활용)
+  window.loadProducts = loadProducts;
+  // 최종 저장에서 직접 호출할 수 있도록 노출
+  window.saveProducts = saveProducts;
 })();

@@ -2,21 +2,49 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>홈 네트워크 관리 시스템</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root{ 
+            --safe-top: env(safe-area-inset-top);
+            --safe-bottom: env(safe-area-inset-bottom);
+        }
+        /* iOS 11 fallback */
+        @supports(padding: constant(safe-area-inset-top)){
+            :root{
+                --safe-top: constant(safe-area-inset-top);
+                --safe-bottom: constant(safe-area-inset-bottom);
+            }
+        }
+        .safe-top{ padding-top: var(--safe-top); }
+        .safe-bottom{ padding-bottom: var(--safe-bottom); }
+        /* 문서 전체에서도 안전영역을 보장 */
+        html, body { height: 100%; }
+        body { padding-top: var(--safe-top); padding-bottom: var(--safe-bottom); }
+        /* 터치 타깃 확대 (모바일 접근성) */
+        :is(button, .tab-btn){ min-height: 44px; }
+        /* 키보드 회피 애니메이션 */
+        .avoid-keyboard{ transition: bottom .2s ease; }
+        
+    </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <!-- 네비게이션 바 -->
-    <nav class="bg-blue-600 text-white p-4 shadow-lg">
-        <div class="container mx-auto flex justify-between items-center">
-            <h1 class="text-xl font-bold">홈 네트워크 관리 시스템</h1>
-            <div id="user-info" class="hidden">
-                <span id="user-name" class="mr-4"></span>
-                <span id="user-role" class="bg-blue-800 px-2 py-1 rounded text-sm mr-4"></span>
-                <button id="logout-btn" class="bg-red-500 hover:bg-red-600 px-3 py-1 rounded">
+    <nav class="bg-blue-600 text-white p-4 shadow-lg safe-top">
+        <div class="container mx-auto grid grid-cols-[1fr_auto] items-center gap-3 min-w-0">
+            <h1 class="truncate text-base sm:text-lg md:text-xl font-bold leading-snug">
+                홈 네트워크 관리 시스템
+            </h1>
+            <div id="user-info" class="hidden shrink-0 flex items-center gap-2">
+                <span id="user-name" class="inline-flex items-center h-8 px-2 rounded bg-blue-700/0"></span>
+                <span id="user-role" class="inline-flex items-center h-8 bg-blue-800 px-2 rounded text-xs sm:text-sm"></span>
+                <button id="logout-btn" class="inline-flex items-center bg-red-500 hover:bg-red-600 px-3 h-8 rounded">
                     <i class="fas fa-sign-out-alt mr-1"></i>로그아웃
                 </button>
             </div>
@@ -71,7 +99,7 @@
                         <label class="block text-gray-700 text-sm font-bold mb-2" for="reg-phone">
                             전화번호
                         </label>
-                        <input id="reg-phone" type="tel" required
+                        <input id="reg-phone" type="tel" inputmode="tel" autocomplete="tel" required
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
                     </div>
                     <div class="mb-4">
@@ -111,8 +139,8 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
                 <!-- 현장 등록 카드 -->
                 <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer" onclick="showPage('site-registration')">
-                    <div class="flex items-center">
-                        <i class="fas fa-building text-blue-500 text-3xl mr-4"></i>
+                    <div class="flex items-start md:items-center">
+                        <i class="fas fa-building text-blue-500 text-3xl mr-4 flex-shrink-0 leading-none"></i>
                         <div>
                             <h3 class="text-lg font-semibold">현장 등록</h3>
                             <p class="text-gray-600">새로운 현장 정보를 등록합니다</p>
@@ -120,8 +148,8 @@
                     </div>
                 </div>                <!-- 일일업무관리 카드 -->
                 <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer" onclick="showPage('daily-work')">
-                    <div class="flex items-center">
-                        <i class="fas fa-tasks text-green-500 text-3xl mr-4"></i>
+                    <div class="flex items-start md:items-center">
+                        <i class="fas fa-tasks text-green-500 text-3xl mr-4 flex-shrink-0 leading-none"></i>
                         <div>
                             <h3 class="text-lg font-semibold">일일업무관리</h3>
                             <p class="text-gray-600">스마트플랜과 Action Plan 관리</p>
@@ -131,8 +159,8 @@
 
                 <!-- 현장별 전체조회 카드 -->
                 <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer" onclick="showPage('site-overview')">
-                    <div class="flex items-center">
-                        <i class="fas fa-chart-bar text-purple-500 text-3xl mr-4"></i>
+                    <div class="flex items-start md:items-center">
+                        <i class="fas fa-chart-bar text-purple-500 text-3xl mr-4 flex-shrink-0 leading-none"></i>
                         <div>
                             <h3 class="text-lg font-semibold">현장별 전체조회</h3>
                             <p class="text-gray-600">등록된 현장들의 전체 현황 조회</p>
@@ -144,11 +172,12 @@
 
         <!-- 현장 등록 페이지 -->
         <div id="site-registration-page" class="hidden">
-            <div class="bg-white p-6 rounded-lg shadow-md">
+            <div class="bg-white p-6 pb-24 rounded-lg shadow-md">
                 <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
                     <h2 class="text-2xl font-bold">현장 등록</h2>
-                    <div class="flex items-center gap-2">
-                        <label class="text-sm text-gray-600">현장 선택</label>
+                    <div class="flex flex-col items-start gap-1 md:flex-row md:items-center md:gap-2">
+                        <label class="text-lg text-gray-700 md:hidden">현장선택</label>
+                        <label class="hidden md:inline-block text-sm text-gray-600">현장 선택</label>
                         <select id="site-select" class="px-3 py-2 border border-gray-300 rounded-md min-w-[240px]"></select>
                         <button id="refresh-sites" class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded border"><i class="fas fa-rotate mr-1"></i>새로고침</button>
                     </div>
@@ -297,7 +326,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">PM 전화번호</label>
-                            <input type="text" id="pm_phone" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <input type="text" id="pm_phone" inputmode="tel" autocomplete="tel" class="w-full px-3 py-2 border border-gray-300 rounded-md">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">영업담당 이름</label>
@@ -305,7 +334,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">영업담당 전화번호</label>
-                            <input type="text" id="sales_manager_phone" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <input type="text" id="sales_manager_phone" inputmode="tel" autocomplete="tel" class="w-full px-3 py-2 border border-gray-300 rounded-md">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">건설담당 이름</label>
@@ -313,7 +342,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">건설담당 전화번호</label>
-                            <input type="text" id="construction_manager_phone" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <input type="text" id="construction_manager_phone" inputmode="tel" autocomplete="tel" class="w-full px-3 py-2 border border-gray-300 rounded-md">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">설치점 이름</label>
@@ -321,7 +350,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">설치점 전화번호</label>
-                            <input type="text" id="installer_phone" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <input type="text" id="installer_phone" inputmode="tel" autocomplete="tel" class="w-full px-3 py-2 border border-gray-300 rounded-md">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">네트워크점 이름</label>
@@ -329,7 +358,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-gray-700 mb-2">네트워크점 전화번호</label>
-                            <input type="text" id="network_manager_phone" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <input type="text" id="network_manager_phone" inputmode="tel" autocomplete="tel" class="w-full px-3 py-2 border border-gray-300 rounded-md">
                         </div>
                         <div class="md:col-span-2 mt-2">
                             <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
@@ -434,8 +463,8 @@
                         <div>
                             <label class="block text-sm text-gray-700 mb-2">조명 SW 연동</label>
                             <select id="lighting_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
                                 <option value="N">아니오</option>
-                                <option value="Y">예</option>
                             </select>
                             <input type="text" id="lighting_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
@@ -443,8 +472,8 @@
                         <div>
                             <label class="block text-sm text-gray-700 mb-2">대기전력 SW 연동</label>
                             <select id="standby_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
                                 <option value="N">아니오</option>
-                                <option value="Y">예</option>
                             </select>
                             <input type="text" id="standby_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
@@ -452,8 +481,8 @@
                         <div>
                             <label class="block text-sm text-gray-700 mb-2">가스감지기 연동</label>
                             <select id="gas_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
                                 <option value="N">아니오</option>
-                                <option value="Y">예</option>
                             </select>
                             <input type="text" id="gas_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
@@ -482,8 +511,8 @@
                         <div>
                             <label class="block text-sm text-gray-700 mb-2">주차관제 연동</label>
                             <select id="parking_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
                                 <option value="N">아니오</option>
-                                <option value="Y">예</option>
                             </select>
                             <input type="text" id="parking_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
@@ -491,8 +520,8 @@
                         <div>
                             <label class="block text-sm text-gray-700 mb-2">원격검침 연동</label>
                             <select id="metering_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
                                 <option value="N">아니오</option>
-                                <option value="Y">예</option>
                             </select>
                             <input type="text" id="metering_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
@@ -500,8 +529,8 @@
                         <div>
                             <label class="block text-sm text-gray-700 mb-2">CCTV 연동</label>
                             <select id="cctv_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
                                 <option value="N">아니오</option>
-                                <option value="Y">예</option>
                             </select>
                             <input type="text" id="cctv_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
@@ -513,6 +542,42 @@
                     </form>
                 </div>
             </div>
+
+            <!-- 하단 앱형 탭바 (모바일 전용) -->
+            <nav id="mobile-tabbar" class="fixed bottom-0 left-0 right-0 z-40 bg-white border-t shadow-sm safe-bottom md:hidden">
+                <ul class="grid grid-cols-5 text-xs">
+                    <li>
+                        <button class="tab-btn flex flex-col items-center justify-center py-2 text-gray-600 w-full" data-tab="basic">
+                            <i class="fas fa-list-alt text-base mb-0.5"></i>
+                            <span>기본</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button class="tab-btn flex flex-col items-center justify-center py-2 text-gray-600 w-full" data-tab="contacts">
+                            <i class="fas fa-address-book text-base mb-0.5"></i>
+                            <span>연락처</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button class="tab-btn flex flex-col items-center justify-center py-2 text-gray-600 w-full" data-tab="products">
+                            <i class="fas fa-boxes-stacked text-base mb-0.5"></i>
+                            <span>제품</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button class="tab-btn flex flex-col items-center justify-center py-2 text-gray-600 w-full" data-tab="household">
+                            <i class="fas fa-house-chimney text-base mb-0.5"></i>
+                            <span>세대부</span>
+                        </button>
+                    </li>
+                    <li>
+                        <button class="tab-btn flex flex-col items-center justify-center py-2 text-gray-600 w-full" data-tab="common">
+                            <i class="fas fa-building text-base mb-0.5"></i>
+                            <span>공용부</span>
+                        </button>
+                    </li>
+                </ul>
+            </nav>
         </div>
     </div>
 
@@ -526,5 +591,88 @@
     <script src="js/site-products.js"></script>
     <script src="js/site-household.js"></script>
     <script src="js/site-common.js"></script>
+
+    <!-- FAB: 맨 위로 버튼 -->
+    <button id="fab-back-to-top" aria-label="맨 위로" title="맨 위로"
+            class="hidden fixed right-4 bottom-6 z-50 bg-blue-600 hover:bg-blue-700 text-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center safe-bottom avoid-keyboard">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+
+    <!-- FAB 동작 스크립트 -->
+    <script>
+      (function(){
+        const fab = document.getElementById('fab-back-to-top');
+        if(!fab) return;
+        const showAt = 300; // px 이상 스크롤 시 표시
+
+        function onScroll(){
+          if(window.scrollY > showAt){
+            fab.classList.remove('hidden');
+          }else{
+            fab.classList.add('hidden');
+          }
+        }
+        function scrollTopSmooth(){
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        window.addEventListener('scroll', onScroll, { passive: true });
+        fab.addEventListener('click', scrollTopSmooth);
+        onScroll();
+      })();
+    </script>
+
+    <!-- 모바일 키보드 열림 시 FAB/탭바 밀림 보정 -->
+    <script>
+      (function(){
+        const fab = document.getElementById('fab-back-to-top');
+        const tabbar = document.getElementById('mobile-tabbar');
+        const vv = window.visualViewport;
+        if(!vv) return;
+
+        function adjustUI(){
+          const heightDiff = window.innerHeight - vv.height - vv.offsetTop; // 가려지는 하단 높이(키보드 유무)
+          const extra = Math.max(0, Math.round(heightDiff));
+          if(fab){ fab.style.bottom = (extra > 0 ? (extra + 16) : 24) + 'px'; }
+          if(tabbar){ tabbar.style.bottom = (extra > 0 ? (extra) : 0) + 'px'; }
+        }
+        vv.addEventListener('resize', adjustUI);
+        vv.addEventListener('scroll', adjustUI);
+        window.addEventListener('orientationchange', adjustUI);
+        adjustUI();
+      })();
+    </script>
+
+    <!-- Capacitor StatusBar/Keyboard 네이티브 보정 (존재 시에만 동작) -->
+    <script>
+      (function(){
+        const Cap = window.Capacitor;
+        if(!Cap) return;
+        const Plugins = Cap.Plugins || {};
+        const StatusBar = Plugins.StatusBar;
+        const Keyboard = Plugins.Keyboard;
+
+        // 상태바 스타일/배경색 적용
+        try{ StatusBar && StatusBar.setBackgroundColor && StatusBar.setBackgroundColor({ color: '#2563EB' }); }catch(e){}
+        try{ StatusBar && StatusBar.setStyle && StatusBar.setStyle({ style: 'LIGHT' }); }catch(e){}
+        try{ StatusBar && StatusBar.setOverlaysWebView && StatusBar.setOverlaysWebView({ overlay: false }); }catch(e){}
+
+        // 키보드 리사이즈 모드 및 이벤트
+        try{ Keyboard && Keyboard.setResizeMode && Keyboard.setResizeMode({ mode: 'body' }); }catch(e){}
+        if(Keyboard && Keyboard.addListener){
+          Keyboard.addListener('keyboardWillShow', info => {
+            // visualViewport 핸들러가 추가 보정을 수행하므로 별도 처리 최소화
+          });
+          Keyboard.addListener('keyboardWillHide', () => {
+            // 기본 위치로 복원 보조
+            const fab = document.getElementById('fab-back-to-top');
+            const tabbar = document.getElementById('mobile-tabbar');
+            if(fab){ fab.style.bottom = '24px'; }
+            if(tabbar){ tabbar.style.bottom = '0px'; }
+          });
+        }
+      })();
+    </script>
+
 </body>
 </html>

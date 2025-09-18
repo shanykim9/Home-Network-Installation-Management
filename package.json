@@ -1,0 +1,29 @@
+{
+  "name": "home-network-installation-management",
+  "version": "1.0.0",
+  "description": "아파트 신축 시 홈 네트워크 제품 설치를 관리하는 웹 애플리케이션입니다.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shanykim9/Home-Network-Installation-Management.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/shanykim9/Home-Network-Installation-Management/issues"
+  },
+  "homepage": "https://github.com/shanykim9/Home-Network-Installation-Management#readme",
+  "devDependencies": {
+    "@capacitor/cli": "^7.4.3"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.4.3",
+    "@capacitor/core": "^7.4.3",
+    "@capacitor/keyboard": "^7.0.3",
+    "@capacitor/status-bar": "^7.0.3"
+  }
+}

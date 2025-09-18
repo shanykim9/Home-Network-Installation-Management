@@ -1,42 +1,8 @@
 // 탭 전환 로직
 (function(){
-  // 모바일 전용 스와이프 네비게이션
+  // 모바일 스와이프 네비게이션 비활성화 (요구사항에 따라 제거)
   function initSwipe(){
-    const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints>0);
-    if(!isTouch) return; // 데스크톱 비활성화
-
-    let startX = 0;
-    let endX = 0;
-    let swiping = false;
-    const threshold = 50; // 일반적인 감도
-
-    document.addEventListener('touchstart', (e)=>{
-      swiping = true;
-      startX = e.touches[0].clientX;
-    }, {passive:true});
-
-    document.addEventListener('touchmove', (e)=>{
-      if(!swiping) return;
-      endX = e.touches[0].clientX;
-    }, {passive:true});
-
-    document.addEventListener('touchend', ()=>{
-      if(!swiping) return;
-      const dx = endX - startX;
-      if(Math.abs(dx) > threshold){
-        const tabs = Array.from(document.querySelectorAll('.tab-btn'));
-        const activeIdx = tabs.findIndex(b=>b.classList.contains('border-blue-600'));
-        if(dx < 0){
-          // 왼쪽으로 스와이프 → 다음 탭 (마지막 탭에서 멈춤)
-          if(activeIdx < tabs.length-1){ tabs[activeIdx+1].click(); }
-        }else{
-          // 오른쪽으로 스와이프 → 이전 탭 (첫 탭에서 멈춤)
-          if(activeIdx > 0){ tabs[activeIdx-1].click(); }
-        }
-      }
-      swiping = false;
-      startX = endX = 0;
-    });
+    return; // no-op
   }
   function activateTab(tab){
     // 현재 활성 탭의 데이터 임시 저장
@@ -62,6 +28,7 @@
     if(activePanel){
       activePanel.classList.remove('hidden');
     }
+    try{ document.dispatchEvent(new CustomEvent('tab:activated', { detail: { tab } })); }catch(e){}
 
     // 새로 활성화된 탭의 임시 데이터 로드
     loadTabData(tab);
@@ -197,6 +164,12 @@
           if (tempData.lobbyphone_qty) document.getElementById('lobbyphone_qty').value = tempData.lobbyphone_qty;
           break;
         case 'household':
+          // 기본값을 'Y'로 설정
+          document.getElementById('lighting_enabled').value = 'Y';
+          document.getElementById('standby_enabled').value = 'Y';
+          document.getElementById('gas_enabled').value = 'Y';
+          
+          // 임시 저장된 데이터가 있으면 덮어쓰기
           if (tempData.lighting_enabled) document.getElementById('lighting_enabled').value = tempData.lighting_enabled;
           if (tempData.lighting_company) document.getElementById('lighting_company').value = tempData.lighting_company;
           if (tempData.standby_enabled) document.getElementById('standby_enabled').value = tempData.standby_enabled;
@@ -205,11 +178,21 @@
           if (tempData.gas_company) document.getElementById('gas_company').value = tempData.gas_company;
           break;
         case 'common':
-          if (tempData.parking_enabled) document.getElementById('parking_enabled').value = tempData.parking_enabled;
+          // 기본값을 'Y'로 강제 적용하고, 임시저장 값이 'Y'일 때만 허용
+          const parkingEl = document.getElementById('parking_enabled');
+          const meteringEl = document.getElementById('metering_enabled');
+          const cctvEl = document.getElementById('cctv_enabled');
+
+          if (parkingEl) parkingEl.value = 'Y';
+          if (meteringEl) meteringEl.value = 'Y';
+          if (cctvEl) cctvEl.value = 'Y';
+
+          // 임시 저장된 데이터가 'Y'일 때만 반영 (N은 무시)
+          if (tempData.parking_enabled === 'Y') document.getElementById('parking_enabled').value = 'Y';
           if (tempData.parking_company) document.getElementById('parking_company').value = tempData.parking_company;
-          if (tempData.metering_enabled) document.getElementById('metering_enabled').value = tempData.metering_enabled;
+          if (tempData.metering_enabled === 'Y') document.getElementById('metering_enabled').value = 'Y';
           if (tempData.metering_company) document.getElementById('metering_company').value = tempData.metering_company;
-          if (tempData.cctv_enabled) document.getElementById('cctv_enabled').value = tempData.cctv_enabled;
+          if (tempData.cctv_enabled === 'Y') document.getElementById('cctv_enabled').value = 'Y';
           if (tempData.cctv_company) document.getElementById('cctv_company').value = tempData.cctv_company;
           break;
       }
@@ -218,30 +201,47 @@
     }
   }
 
-  // 사이트 목록 로드
+  // 사이트 목록 로드 (간단 디바운스만 유지)
+  let loadSitesTimeout = null;
   async function loadSitesIntoSelect(){
     const select = document.getElementById('site-select');
     if(!select) return;
+    
     // 로그인 토큰 없으면 호출하지 않음
     if (typeof TokenManager === 'undefined' || !TokenManager.isValid()) {
       return;
     }
-    select.innerHTML = '<option value="">현장을 선택하세요</option>';
-    try{
-      const res = await apiRequest('/sites', { method: 'GET' });
-      (res.sites||[]).forEach(site=>{
-        const opt = document.createElement('option');
-        opt.value = site.id;
-        opt.textContent = site.site_name;
-        select.appendChild(opt);
-      });
-    }catch(err){
-      // 인증 오류 등은 로그인 전일 수 있으므로 조용히 무시
-      if (String(err.message || '').includes('인증 토큰')) return;
-      if (String(err.message || '').includes('유효하지 않은 토큰')) return;
-      console.error(err);
-      Swal.fire('오류','현장 목록을 불러오지 못했습니다.','error');
+    
+    // 이전 타이머 취소 (디바운싱)
+    if (loadSitesTimeout) {
+      clearTimeout(loadSitesTimeout);
     }
+    
+    // 300ms 디바운싱 적용
+    loadSitesTimeout = setTimeout(async () => {
+      try {
+        select.innerHTML = '<option value="">현장을 선택하세요</option>';
+        const res = await apiRequest('/sites', { method: 'GET' });
+        const seenNames = new Set();
+        (res.sites||[]).forEach(site=>{
+          const nameKey = String(site.site_name||'').trim();
+          if(!nameKey) return;
+          if(seenNames.has(nameKey)) return; // 이름 기준 중복 제거
+          seenNames.add(nameKey);
+          const opt = document.createElement('option');
+          opt.value = site.id;
+          opt.textContent = site.site_name;
+          select.appendChild(opt);
+        });
+        console.log('✅ 사이트 목록 로드 완료:', seenNames.size + '개 현장');
+      } catch(err) {
+        // 인증 오류 등은 로그인 전일 수 있으므로 조용히 무시
+        if (String(err.message || '').includes('인증 토큰')) return;
+        if (String(err.message || '').includes('유효하지 않은 토큰')) return;
+        console.error('❌ 사이트 목록 로드 실패:', err);
+        Swal.fire('오류','현장 목록을 불러오지 못했습니다.','error');
+      }
+    }, 300);
   }
 
   // 모든 탭에 프로젝트 No. 표시
@@ -269,20 +269,13 @@
         saveCurrentTabData(currentTabName);
       }
 
-      // 모든 임시 데이터 가져오기
-      const allTempData = TempStorage.getAllTempData();
-      
-      if (!TempStorage.hasAnyTempData()) {
-        Swal.fire('안내', '저장할 데이터가 없습니다.', 'info');
-        return;
-      }
+      const allTempData = (typeof TempStorage !== 'undefined' && TempStorage.getAllTempData) ? TempStorage.getAllTempData() : {};
 
-      // 저장 확인 다이얼로그
-      const result = await Swal.fire({
+      const confirm = await Swal.fire({
         title: '최종 저장',
         html: `
           <div class="text-left">
-            <p class="mb-2">다음 탭들의 데이터를 저장하시겠습니까?</p>
+            <p class="mb-2">다음 데이터를 순차 저장합니다.</p>
             <ul class="text-sm text-gray-600">
               ${Object.keys(allTempData).map(tab => `<li>• ${getTabDisplayName(tab)}</li>`).join('')}
             </ul>
@@ -293,60 +286,78 @@
         confirmButtonText: '저장',
         cancelButtonText: '취소'
       });
+      if (!confirm.isConfirmed) return;
 
-      if (!result.isConfirmed) return;
+      Swal.fire({ title: '저장 중...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-      // 로딩 표시
-      Swal.fire({
-        title: '저장 중...',
-        text: '모든 데이터를 저장하고 있습니다.',
-        allowOutsideClick: false,
-        didOpen: () => {
-          Swal.showLoading();
+      // 1) 현장 생성/수정 보장 (site_id 확보)
+      const siteSelect = document.getElementById('site-select');
+      let siteId = siteSelect && siteSelect.value ? parseInt(siteSelect.value, 10) : null;
+
+      // 기본정보 payload 구성 (필드명은 site-basic.js와 동일)
+      const basic = allTempData.basic || {};
+      const projectNo = basic.project_no || (document.getElementById('project-no-prefix')?.value + document.getElementById('project-no-number')?.value) || null;
+      const basicPayload = Object.keys(basic).length ? basic : {
+        project_no: projectNo || null,
+        construction_company: document.getElementById('construction-company')?.value || null,
+        site_name: document.getElementById('site-name')?.value || null,
+        address: document.getElementById('address')?.value || null,
+        detail_address: document.getElementById('detail-address')?.value || null,
+        household_count: parseInt(document.getElementById('household-count')?.value||'0',10),
+        registration_date: document.getElementById('registration-date')?.value || null,
+        delivery_date: document.getElementById('delivery-date')?.value || null,
+        completion_date: document.getElementById('completion-date')?.value || null,
+        certification_audit: document.getElementById('certification-audit')?.value || 'N',
+        home_iot: document.getElementById('home-iot')?.value || 'N'
+      };
+
+      let createdOrLoadedSite = null;
+      if (!siteId) {
+        // 신규 생성 필요
+        const createRes = await apiRequest('/sites', { method: 'POST', body: basicPayload });
+        createdOrLoadedSite = createRes.site || null;
+        // 목록 갱신 및 선택값 주입
+        if (window.loadSitesIntoSelect) { await window.loadSitesIntoSelect(); }
+        if (createdOrLoadedSite && createdOrLoadedSite.id) {
+          siteId = createdOrLoadedSite.id;
+          if (siteSelect) siteSelect.value = String(siteId);
         }
-      });
-
-      // 각 탭별로 저장
-      const savePromises = [];
-      
-      if (allTempData.basic) {
-        savePromises.push(saveBasicData(allTempData.basic));
-      }
-      
-      if (allTempData.contacts) {
-        savePromises.push(saveContactsData(allTempData.contacts));
-      }
-      
-      if (allTempData.products) {
-        savePromises.push(saveProductsData(allTempData.products));
-      }
-      
-      if (allTempData.household) {
-        savePromises.push(saveHouseholdData(allTempData.household));
-      }
-      
-      if (allTempData.common) {
-        savePromises.push(saveCommonData(allTempData.common));
+      } else if (Object.keys(basicPayload||{}).length) {
+        // 기존 현장 수정
+        await apiRequest(`/sites/${siteId}`, { method: 'PATCH', body: basicPayload });
       }
 
-      // 모든 저장 완료 대기
-      await Promise.all(savePromises);
+      // site 정보 확보(프로젝트 No 브로드캐스트)
+      try {
+        if (!createdOrLoadedSite && siteId) {
+          const res = await apiRequest(`/sites/${siteId}`, { method: 'GET' });
+          createdOrLoadedSite = res.site || null;
+        }
+        if (createdOrLoadedSite && window.updateAllTabsWithSiteInfo) {
+          window.updateAllTabsWithSiteInfo(createdOrLoadedSite);
+        } else if (projectNo && window.updateAllTabsWithSiteInfo) {
+          window.updateAllTabsWithSiteInfo({ project_no: projectNo });
+        }
+      } catch(_) {}
 
-      // 성공 메시지
-      Swal.fire({
-        icon: 'success',
-        title: '저장 완료!',
-        text: '모든 데이터가 성공적으로 저장되었습니다.',
-        timer: 2000,
-        showConfirmButton: false
-      });
+      if (!siteId) throw new Error('현장 생성 또는 선택에 실패했습니다.');
 
-      // 임시 데이터 삭제
+      // 2) 순차 저장: 연락처 → 제품수량 → 세대부 → 공용부 (조용 모드)
+      window.__batchSaving = true;
+      try{
+        if (typeof saveContacts === 'function') { await saveContacts(); }
+        if (typeof saveProducts === 'function') { await saveProducts(); }
+        if (typeof saveHousehold === 'function') { await saveHousehold(); }
+        if (typeof saveCommon === 'function') { await saveCommon(); }
+      } finally {
+        delete window.__batchSaving;
+      }
+
+      Swal.fire({ icon:'success', title:'저장 완료', text:'모든 데이터가 정상 저장되었습니다.', timer: 1800, showConfirmButton:false });
       TempStorage.clearAllTempData();
-
     } catch (error) {
       console.error('❌ 최종 저장 실패:', error);
-      Swal.fire('오류', '데이터 저장 중 오류가 발생했습니다.', 'error');
+      Swal.fire('오류', error?.message || '데이터 저장 중 오류가 발생했습니다.', 'error');
     }
   }
 
@@ -422,9 +433,30 @@
       }
       
       const siteId = siteSelect.value;
+      // 탭 임시 데이터 -> API 스키마(items 배열)로 변환
+      const items = [
+        {
+          integration_type: 'lighting_sw',
+          enabled: data.lighting_enabled || 'Y',
+          company_name: data.lighting_company || null,
+          project_no: document.getElementById('household-project-no')?.value || null,
+        },
+        {
+          integration_type: 'standby_power_sw',
+          enabled: data.standby_enabled || 'Y',
+          company_name: data.standby_company || null,
+          project_no: document.getElementById('household-project-no')?.value || null,
+        },
+        {
+          integration_type: 'gas_detector',
+          enabled: data.gas_enabled || 'Y',
+          company_name: data.gas_company || null,
+          project_no: document.getElementById('household-project-no')?.value || null,
+        },
+      ];
       const response = await apiRequest(`/sites/${siteId}/integrations/household`, {
         method: 'POST',
-        body: data
+        body: { items }
       });
       
       console.log('💾 세대부연동 저장 성공:', response);
@@ -444,9 +476,30 @@
       }
       
       const siteId = siteSelect.value;
+      // 탭 임시 데이터 -> API 스키마(items 배열)로 변환
+      const items = [
+        {
+          integration_type: 'parking_control',
+          enabled: data.parking_enabled || 'Y',
+          company_name: data.parking_company || null,
+          project_no: document.getElementById('common-project-no')?.value || null,
+        },
+        {
+          integration_type: 'remote_metering',
+          enabled: data.metering_enabled || 'Y',
+          company_name: data.metering_company || null,
+          project_no: document.getElementById('common-project-no')?.value || null,
+        },
+        {
+          integration_type: 'cctv',
+          enabled: data.cctv_enabled || 'Y',
+          company_name: data.cctv_company || null,
+          project_no: document.getElementById('common-project-no')?.value || null,
+        },
+      ];
       const response = await apiRequest(`/sites/${siteId}/integrations/common`, {
         method: 'POST',
-        body: data
+        body: { items }
       });
       
       console.log('💾 공용부연동 저장 성공:', response);
@@ -477,6 +530,8 @@
       refreshBtn.addEventListener('click', (e)=>{ e.preventDefault(); loadSitesIntoSelect(); });
     }
 
+    // 신규현장 버튼 관련 로직 제거 (원복)
+
     // 최종 저장 버튼 이벤트 등록
     const finalSaveBtn = document.getElementById('final-save-btn');
     if (finalSaveBtn) {
@@ -484,5 +539,21 @@
     }
 
     loadSitesIntoSelect();
+    // 현장 선택 시 모든 탭 서버 로드 보장
+    const siteSelect = document.getElementById('site-select');
+    if (siteSelect) {
+      siteSelect.addEventListener('change', ()=>{
+        try{ if (typeof loadBasic === 'function') loadBasic(); }catch(_){ }
+        try{ if (typeof loadContacts === 'function') loadContacts(); }catch(_){ }
+        try{ if (typeof loadProducts === 'function') loadProducts(); }catch(_){ }
+        try{ if (typeof loadHousehold === 'function') loadHousehold(); }catch(_){ }
+        try{ if (typeof loadCommon === 'function') loadCommon(); }catch(_){ }
+      });
+    }
+    // 앱 초기 로그인 완료 후 사이트/연락처 등 데이터 재주입
+    document.addEventListener('auth:ready', ()=>{
+      loadSitesIntoSelect();
+      try{ document.dispatchEvent(new CustomEvent('tab:activated', { detail: { tab: 'contacts' } })); }catch(e){}
+    });
   });
 })();
