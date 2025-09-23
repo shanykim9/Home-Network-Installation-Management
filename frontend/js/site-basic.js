@@ -114,6 +114,10 @@
       document.getElementById('certification-audit').value = s.certification_audit || '';
       document.getElementById('home-iot').value = s.home_iot || '';
       
+      // 제품 BI
+      const productBiEl = document.getElementById('product-bi');
+      if(productBiEl) productBiEl.value = s.product_bi || '';
+      
       // 날짜 표시 업데이트
       updateDateDisplays();
       
@@ -146,7 +150,8 @@
       delivery_date: document.getElementById('delivery-date').value || null,
       completion_date: document.getElementById('completion-date').value || null,
       certification_audit: document.getElementById('certification-audit').value || 'N',
-      home_iot: document.getElementById('home-iot').value || 'N'
+      home_iot: document.getElementById('home-iot').value || 'N',
+      product_bi: (document.getElementById('product-bi') && document.getElementById('product-bi').value) || null
     };
 
     // 프로젝트 No. 형식 검사
@@ -197,7 +202,7 @@
       form.addEventListener('submit', saveBasic); 
     }
     // 탭 이동 시 임시 저장을 위해 필드 변경 이벤트 등록
-    ['project-no','construction-company','site-name','address','detail-address','household-count','registration-date','delivery-date','completion-date','certification-audit','home-iot']
+    ['project-no','construction-company','site-name','address','detail-address','household-count','registration-date','delivery-date','completion-date','certification-audit','home-iot','product-bi']
       .forEach(id=>{
         const el = document.getElementById(id);
         if(el){
@@ -213,9 +218,10 @@
               delivery_date: document.getElementById('delivery-date').value,
               completion_date: document.getElementById('completion-date').value,
               certification_audit: document.getElementById('certification-audit').value || 'N',
-              home_iot: document.getElementById('home-iot').value || 'N'
+              home_iot: document.getElementById('home-iot').value || 'N',
+              product_bi: (document.getElementById('product-bi') && document.getElementById('product-bi').value) || null
             };
-            try{ if(window.saveToTempStorage){ window.saveToTempStorage('basic', temp); } }catch(_){}
+            try{ if(window.saveToTempStorage){ window.saveToTempStorage('basic', temp); } }catch(_){ }
           });
         }
       });

@@ -205,6 +205,7 @@ def create_site():
             'completion_date': data.get('completion_date'),
             'certification_audit': data.get('certification_audit', 'N'),
             'home_iot': data.get('home_iot', 'N'),
+            'product_bi': data.get('product_bi'),
             'created_by': payload['user_id'],
             'created_at': datetime.utcnow().isoformat()
         }
@@ -343,6 +344,7 @@ def update_site(site_id):
             'completion_date': data.get('completion_date') if data.get('completion_date') else None,
             'certification_audit': data.get('certification_audit'),
             'home_iot': data.get('home_iot'),
+            'product_bi': data.get('product_bi'),
             'updated_at': datetime.utcnow().isoformat()
         }
         
@@ -539,7 +541,7 @@ def get_household_integrations(site_id):
         if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
             return jsonify({'error': '접근 권한이 없습니다.'}), 403
 
-        types = ['lighting_sw','standby_power_sw','gas_detector']
+        types = ['lighting_sw','standby_power_sw','gas_detector','heating','ventilation','door_lock','air_conditioner','real_time_metering','environment_sensor']
         rows = supabase.table('site_household_integrations').select('*').eq('site_id', site_id).in_('integration_type', types).execute()
         return jsonify({'items': rows.data or []}), 200
     except Exception as e:
@@ -566,31 +568,65 @@ def upsert_household_integrations(site_id):
 
         data = request.get_json() or {}
         items = data.get('items', [])
+        print(f"📝 세대부 저장 요청 items: {items}")
+
+        def _normalize(v):
+            if v is None:
+                return None
+            if isinstance(v, str):
+                v2 = v.strip()
+                return v2 if v2 != '' else None
+            return v
+
+        def _yn(v):
+            return 'Y' if str(v or 'N').strip().upper() == 'Y' else 'N'
+
         saved = []
-        allowed = ['lighting_sw','standby_power_sw','gas_detector']
+        allowed = ['lighting_sw','standby_power_sw','gas_detector','heating','ventilation','door_lock','air_conditioner','real_time_metering','environment_sensor']
         for item in items:
-            itype = item.get('integration_type')
+            itype = (item.get('integration_type') or '').strip()
             if itype not in allowed:
+                print(f"⚠️ 허용되지 않은 타입(세대부): {itype}")
                 continue
             payload_data = {
                 'site_id': site_id,
-                # registration_no는 더 이상 사용하지 않음
-                'project_no': item.get('project_no'),
+                'project_no': _normalize(item.get('project_no')),
                 'integration_type': itype,
-                'enabled': (item.get('enabled') or 'N'),
-                'company_name': item.get('company_name')
+                'enabled': _yn(item.get('enabled')),
+                'company_name': _normalize(item.get('company_name')),
+                'contact_person': _normalize(item.get('contact_person')),
+                'contact_phone': _normalize(item.get('contact_phone')),
+                'notes': _normalize(item.get('notes')),
+                'updated_at': datetime.utcnow().isoformat()
             }
-            existing = supabase.table('site_household_integrations').select('id').eq('site_id', site_id).eq('integration_type', itype).limit(1).execute()
-            if existing.data:
-                iid = existing.data[0]['id']
-                res = supabase.table('site_household_integrations').update(payload_data).eq('id', iid).execute()
-            else:
-                res = supabase.table('site_household_integrations').insert(payload_data).execute()
-            if res.data:
-                saved.append(res.data[0])
+            print(f"➡️ 업서트 시도(세대부): {payload_data}")
+
+            # 1) 업데이트 우선(site_id + integration_type)
+            try:
+                upd = supabase.table('site_household_integrations').update(payload_data).eq('site_id', site_id).eq('integration_type', itype).execute()
+                if upd.data:
+                    print(f"✅ 업데이트 성공(세대부): {upd.data}")
+                    saved.append(upd.data[0])
+                    continue
+            except Exception as e_upd:
+                print(f"❌ 업데이트 오류(세대부): {str(e_upd)}")
+
+            # 2) 없으면 삽입
+            try:
+                payload_insert = dict(payload_data)
+                payload_insert['created_at'] = datetime.utcnow().isoformat()
+                ins = supabase.table('site_household_integrations').insert(payload_insert).execute()
+                print(f"✅ 삽입 성공(세대부): {ins.data}")
+                if ins.data:
+                    saved.append(ins.data[0])
+            except Exception as e_ins:
+                print(f"❌ 삽입 오류(세대부): {str(e_ins)}")
+                return jsonify({'error': '세대부연동 저장 실패', 'error_detail': str(e_ins)}), 500
+
         return jsonify({'message': '세대부연동이 저장되었습니다.', 'items': saved}), 200
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"❌ 세대부연동 전체 오류: {str(e)}")
+        return jsonify({'error': '세대부연동 저장 실패', 'error_detail': str(e)}), 500
 
 # 공용부연동 조회 (주차관제/원격검침/CCTV)
 @sites_bp.route('/sites/<int:site_id>/integrations/common', methods=['GET'])
@@ -611,7 +647,7 @@ def get_common_integrations(site_id):
         if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
             return jsonify({'error': '접근 권한이 없습니다.'}), 403
 
-        types = ['parking_control','remote_metering','cctv']
+        types = ['parking_control','remote_metering','cctv','elevator','parcel','ev_charger','parking_location','onepass','rf_card']
         rows = supabase.table('site_common_integrations').select('*').eq('site_id', site_id).in_('integration_type', types).execute()
         return jsonify({'items': rows.data or []}), 200
     except Exception as e:
@@ -772,31 +808,65 @@ def upsert_common_integrations(site_id):
 
         data = request.get_json() or {}
         items = data.get('items', [])
+        print(f"📝 공용부 저장 요청 items: {items}")
+
+        def _normalize(v):
+            if v is None:
+                return None
+            if isinstance(v, str):
+                v2 = v.strip()
+                return v2 if v2 != '' else None
+            return v
+
+        def _yn(v):
+            return 'Y' if str(v or 'N').strip().upper() == 'Y' else 'N'
+
         saved = []
-        allowed = ['parking_control','remote_metering','cctv']
+        allowed = ['parking_control','remote_metering','cctv','elevator','parcel','ev_charger','parking_location','onepass','rf_card']
         for item in items:
-            itype = item.get('integration_type')
+            itype = (item.get('integration_type') or '').strip()
             if itype not in allowed:
+                print(f"⚠️ 허용되지 않은 타입(공용부): {itype}")
                 continue
             payload_data = {
                 'site_id': site_id,
-                # registration_no는 더 이상 사용하지 않음
-                'project_no': item.get('project_no'),
+                'project_no': _normalize(item.get('project_no')),
                 'integration_type': itype,
-                'enabled': (item.get('enabled') or 'N'),
-                'company_name': item.get('company_name')
+                'enabled': _yn(item.get('enabled')),
+                'company_name': _normalize(item.get('company_name')),
+                'contact_person': _normalize(item.get('contact_person')),
+                'contact_phone': _normalize(item.get('contact_phone')),
+                'notes': _normalize(item.get('notes')),
+                'updated_at': datetime.utcnow().isoformat()
             }
-            existing = supabase.table('site_common_integrations').select('id').eq('site_id', site_id).eq('integration_type', itype).limit(1).execute()
-            if existing.data:
-                iid = existing.data[0]['id']
-                res = supabase.table('site_common_integrations').update(payload_data).eq('id', iid).execute()
-            else:
-                res = supabase.table('site_common_integrations').insert(payload_data).execute()
-            if res.data:
-                saved.append(res.data[0])
+            print(f"➡️ 업서트 시도(공용부): {payload_data}")
+
+            # 1) 업데이트 우선(site_id + integration_type)
+            try:
+                upd = supabase.table('site_common_integrations').update(payload_data).eq('site_id', site_id).eq('integration_type', itype).execute()
+                if upd.data:
+                    print(f"✅ 업데이트 성공(공용부): {upd.data}")
+                    saved.append(upd.data[0])
+                    continue
+            except Exception as e_upd:
+                print(f"❌ 업데이트 오류(공용부): {str(e_upd)}")
+
+            # 2) 없으면 삽입
+            try:
+                payload_insert = dict(payload_data)
+                payload_insert['created_at'] = datetime.utcnow().isoformat()
+                ins = supabase.table('site_common_integrations').insert(payload_insert).execute()
+                print(f"✅ 삽입 성공(공용부): {ins.data}")
+                if ins.data:
+                    saved.append(ins.data[0])
+            except Exception as e_ins:
+                print(f"❌ 삽입 오류(공용부): {str(e_ins)}")
+                return jsonify({'error': '공용부연동 저장 실패', 'error_detail': str(e_ins)}), 500
+
         return jsonify({'message': '공용부연동이 저장되었습니다.', 'items': saved}), 200
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"❌ 공용부연동 전체 오류: {str(e)}")
+        return jsonify({'error': '공용부연동 저장 실패', 'error_detail': str(e)}), 500
 
 # 제품수량 조회 (평면 스키마: wallpad_*, doorphone_*, lobbyphone_*)
 @sites_bp.route('/sites/<int:site_id>/products', methods=['GET'])

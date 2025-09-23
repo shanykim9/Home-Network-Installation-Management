@@ -55,7 +55,12 @@ async function apiRequest(endpoint, options = {}) {
             let errorMessage = '요청 처리 중 오류가 발생했습니다.';
             try {
                 const error = await response.json();
-                errorMessage = error.error || errorMessage;
+                // 서버가 내려준 상세 사유를 최대한 노출
+                const parts = [];
+                if (error.error) parts.push(error.error);
+                if (error.message) parts.push(error.message);
+                if (error.error_detail) parts.push(error.error_detail);
+                errorMessage = parts.length ? parts.join(' | ') : errorMessage;
             } catch (e) {
                 errorMessage = `HTTP ${response.status}: ${response.statusText}`;
             }

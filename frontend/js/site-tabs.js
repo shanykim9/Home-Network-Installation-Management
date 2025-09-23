@@ -54,7 +54,8 @@
             delivery_date: document.getElementById('delivery-date')?.value,
             completion_date: document.getElementById('completion-date')?.value,
             certification_audit: document.getElementById('certification-audit')?.value,
-            home_iot: document.getElementById('home-iot')?.value
+            home_iot: document.getElementById('home-iot')?.value,
+            product_bi: document.getElementById('product-bi')?.value
           };
           break;
         case 'contacts':
@@ -85,20 +86,38 @@
           data = {
             lighting_enabled: document.getElementById('lighting_enabled')?.value,
             lighting_company: document.getElementById('lighting_company')?.value,
+            lighting_contact_person: document.getElementById('lighting_contact_person')?.value,
+            lighting_contact_phone: document.getElementById('lighting_contact_phone')?.value,
+            lighting_notes: document.getElementById('lighting_notes')?.value,
             standby_enabled: document.getElementById('standby_enabled')?.value,
             standby_company: document.getElementById('standby_company')?.value,
+            standby_contact_person: document.getElementById('standby_contact_person')?.value,
+            standby_contact_phone: document.getElementById('standby_contact_phone')?.value,
+            standby_notes: document.getElementById('standby_notes')?.value,
             gas_enabled: document.getElementById('gas_enabled')?.value,
-            gas_company: document.getElementById('gas_company')?.value
+            gas_company: document.getElementById('gas_company')?.value,
+            gas_contact_person: document.getElementById('gas_contact_person')?.value,
+            gas_contact_phone: document.getElementById('gas_contact_phone')?.value,
+            gas_notes: document.getElementById('gas_notes')?.value
           };
           break;
         case 'common':
           data = {
             parking_enabled: document.getElementById('parking_enabled')?.value,
             parking_company: document.getElementById('parking_company')?.value,
+            parking_contact_person: document.getElementById('parking_contact_person')?.value,
+            parking_contact_phone: document.getElementById('parking_contact_phone')?.value,
+            parking_notes: document.getElementById('parking_notes')?.value,
             metering_enabled: document.getElementById('metering_enabled')?.value,
             metering_company: document.getElementById('metering_company')?.value,
+            metering_contact_person: document.getElementById('metering_contact_person')?.value,
+            metering_contact_phone: document.getElementById('metering_contact_phone')?.value,
+            metering_notes: document.getElementById('metering_notes')?.value,
             cctv_enabled: document.getElementById('cctv_enabled')?.value,
-            cctv_company: document.getElementById('cctv_company')?.value
+            cctv_company: document.getElementById('cctv_company')?.value,
+            cctv_contact_person: document.getElementById('cctv_contact_person')?.value,
+            cctv_contact_phone: document.getElementById('cctv_contact_phone')?.value,
+            cctv_notes: document.getElementById('cctv_notes')?.value
           };
           break;
       }
@@ -439,18 +458,27 @@
           integration_type: 'lighting_sw',
           enabled: data.lighting_enabled || 'Y',
           company_name: data.lighting_company || null,
+          contact_person: data.lighting_contact_person || null,
+          contact_phone: data.lighting_contact_phone || null,
+          notes: data.lighting_notes || null,
           project_no: document.getElementById('household-project-no')?.value || null,
         },
         {
           integration_type: 'standby_power_sw',
           enabled: data.standby_enabled || 'Y',
           company_name: data.standby_company || null,
+          contact_person: data.standby_contact_person || null,
+          contact_phone: data.standby_contact_phone || null,
+          notes: data.standby_notes || null,
           project_no: document.getElementById('household-project-no')?.value || null,
         },
         {
           integration_type: 'gas_detector',
           enabled: data.gas_enabled || 'Y',
           company_name: data.gas_company || null,
+          contact_person: data.gas_contact_person || null,
+          contact_phone: data.gas_contact_phone || null,
+          notes: data.gas_notes || null,
           project_no: document.getElementById('household-project-no')?.value || null,
         },
       ];
@@ -482,18 +510,27 @@
           integration_type: 'parking_control',
           enabled: data.parking_enabled || 'Y',
           company_name: data.parking_company || null,
+          contact_person: data.parking_contact_person || null,
+          contact_phone: data.parking_contact_phone || null,
+          notes: data.parking_notes || null,
           project_no: document.getElementById('common-project-no')?.value || null,
         },
         {
           integration_type: 'remote_metering',
           enabled: data.metering_enabled || 'Y',
           company_name: data.metering_company || null,
+          contact_person: data.metering_contact_person || null,
+          contact_phone: data.metering_contact_phone || null,
+          notes: data.metering_notes || null,
           project_no: document.getElementById('common-project-no')?.value || null,
         },
         {
           integration_type: 'cctv',
           enabled: data.cctv_enabled || 'Y',
           company_name: data.cctv_company || null,
+          contact_person: data.cctv_contact_person || null,
+          contact_phone: data.cctv_contact_phone || null,
+          notes: data.cctv_notes || null,
           project_no: document.getElementById('common-project-no')?.value || null,
         },
       ];

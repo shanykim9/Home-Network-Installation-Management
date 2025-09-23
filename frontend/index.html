@@ -254,6 +254,12 @@
                         <input type="number" id="household-count" required 
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
                     </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">제품 BI</label>
+                        <input type="text" id="product-bi" 
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500" placeholder="예: BI 텍스트 입력">
+                    </div>
                     
                     <!-- 날짜 입력 필드들 -->
                     <div>
@@ -467,6 +473,9 @@
                                 <option value="N">아니오</option>
                             </select>
                             <input type="text" id="lighting_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="lighting_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="lighting_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="lighting_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
                         <!-- 대기전력 SW -->
                         <div>
@@ -476,6 +485,9 @@
                                 <option value="N">아니오</option>
                             </select>
                             <input type="text" id="standby_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="standby_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="standby_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="standby_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
                         <!-- 가스감지기 -->
                         <div>
@@ -485,6 +497,87 @@
                                 <option value="N">아니오</option>
                             </select>
                             <input type="text" id="gas_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="gas_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="gas_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="gas_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+
+                        <!-- 난방 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">난방 연동</label>
+                            <select id="heating_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="heating_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="heating_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="heating_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="heating_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+
+                        <!-- 환기 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">환기 연동</label>
+                            <select id="ventilation_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="ventilation_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="ventilation_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="ventilation_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="ventilation_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+
+                        <!-- 도어락 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">도어락 연동</label>
+                            <select id="doorlock_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="doorlock_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="doorlock_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="doorlock_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="doorlock_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+
+                        <!-- 에어컨 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">에어컨 연동</label>
+                            <select id="aircon_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="aircon_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="aircon_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="aircon_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="aircon_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+
+                        <!-- 실시간검침 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">실시간검침 연동</label>
+                            <select id="realtime_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="realtime_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="realtime_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="realtime_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="realtime_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+
+                        <!-- 환경감지 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">환경감지 연동</label>
+                            <select id="env_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="env_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="env_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="env_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="env_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
                         <div class="md:col-span-3 mt-2">
                             <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
@@ -515,6 +608,9 @@
                                 <option value="N">아니오</option>
                             </select>
                             <input type="text" id="parking_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="parking_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="parking_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="parking_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
                         <!-- 원격검침 -->
                         <div>
@@ -524,6 +620,9 @@
                                 <option value="N">아니오</option>
                             </select>
                             <input type="text" id="metering_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="metering_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="metering_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="metering_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
                         <!-- CCTV -->
                         <div>
@@ -533,6 +632,87 @@
                                 <option value="N">아니오</option>
                             </select>
                             <input type="text" id="cctv_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="cctv_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="cctv_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="cctv_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+
+                        <!-- 엘리베이터 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">엘리베이터 연동</label>
+                            <select id="elevator_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="elevator_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="elevator_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="elevator_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="elevator_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+
+                        <!-- 무인택배 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">무인택배 연동</label>
+                            <select id="parcel_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="parcel_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="parcel_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="parcel_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="parcel_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+
+                        <!-- 전기차충전 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">전기차충전 연동</label>
+                            <select id="ev_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="ev_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="ev_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="ev_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="ev_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+
+                        <!-- 주차위치 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">주차위치 연동</label>
+                            <select id="parkingloc_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="parkingloc_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="parkingloc_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="parkingloc_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="parkingloc_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+
+                        <!-- 원패스 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">원패스 연동</label>
+                            <select id="onepass_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="onepass_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="onepass_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="onepass_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="onepass_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+
+                        <!-- RF카드 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">RF카드 연동</label>
+                            <select id="rfcard_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="rfcard_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="rfcard_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="rfcard_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="rfcard_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
                         <div class="md:col-span-3 mt-2">
                             <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
