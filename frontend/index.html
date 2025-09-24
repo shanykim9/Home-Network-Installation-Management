@@ -146,12 +146,12 @@
                             <p class="text-gray-600">새로운 현장 정보를 등록합니다</p>
                         </div>
                     </div>
-                </div>                <!-- 일일업무관리 카드 -->
+                </div>                <!-- 현장별 업무관리 카드 -->
                 <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer" onclick="showPage('daily-work')">
                     <div class="flex items-start md:items-center">
                         <i class="fas fa-tasks text-green-500 text-3xl mr-4 flex-shrink-0 leading-none"></i>
                         <div>
-                            <h3 class="text-lg font-semibold">일일업무관리</h3>
+                            <h3 class="text-lg font-semibold">현장별 업무관리</h3>
                             <p class="text-gray-600">스마트플랜과 Action Plan 관리</p>
                         </div>
                     </div>
@@ -165,6 +165,112 @@
                             <h3 class="text-lg font-semibold">현장별 전체조회</h3>
                             <p class="text-gray-600">등록된 현장들의 전체 현황 조회</p>
                         </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 현장별 업무관리 페이지 -->
+        <div id="site-work-page" class="hidden">
+            <div class="bg-white p-6 pb-24 rounded-lg shadow-md">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
+                    <h2 class="text-2xl font-bold flex items-center gap-3">
+                        현장별 업무관리
+                        <button id="work-bell" class="relative inline-flex items-center justify-center w-10 h-10 rounded-full bg-blue-50 text-blue-600">
+                            <i class="fas fa-bell"></i>
+                            <span id="work-bell-badge" class="hidden absolute -top-1 -right-1 min-w-[20px] h-[20px] px-1 rounded-full bg-red-600 text-white text-xs flex items-center justify-center"></span>
+                        </button>
+                    </h2>
+                    <div class="flex flex-col items-start gap-1 md:flex-row md:items-center md:gap-2">
+                        <label class="text-lg text-gray-700 md:hidden">현장선택</label>
+                        <label class="hidden md:inline-block text-sm text-gray-600">현장 선택</label>
+                        <select id="work-site-select" class="px-3 py-2 border border-gray-300 rounded-md min-w-[240px]"></select>
+                        <button id="work-refresh-sites" class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded border"><i class="fas fa-rotate mr-1"></i>새로고침</button>
+                        <button onclick="showPage('dashboard')" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded md:ml-2">
+                            <i class="fas fa-arrow-left mr-2"></i>돌아가기
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 탭 네비게이션 (To do / Done / 알람 List + 우측에 + 버튼) -->
+                <div class="border-b mb-6">
+                    <nav class="flex items-center justify-between" role="tablist">
+                        <div class="flex gap-6">
+                            <button class="work-tab-btn text-blue-600 border-b-2 border-blue-600 pb-2" data-tab="todo">To do</button>
+                            <button class="work-tab-btn text-gray-600 hover:text-blue-600 pb-2" data-tab="done">Done</button>
+                            <button class="work-tab-btn text-gray-600 hover:text-blue-600 pb-2" data-tab="alarms">알람 List</button>
+                        </div>
+                        <button id="work-add-row" class="text-blue-600 hover:text-blue-700 text-xl" title="행 추가">
+                            <i class="fas fa-plus"></i>
+                        </button>
+                    </nav>
+                </div>
+
+                <!-- To do 탭 패널 -->
+                <div id="work-tab-todo" class="work-tab-panel" data-tab="todo">
+                    <!-- 모바일 카드 -->
+                    <div class="md:hidden space-y-3" id="work-todo-cards"></div>
+                    <!-- 데스크톱 테이블 -->
+                    <div class="hidden md:block overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="text-gray-600">
+                                <tr>
+                                    <th class="text-left py-2 pr-4">알람일</th>
+                                    <th class="text-left py-2 pr-4">할 일</th>
+                                    <th class="text-left py-2">완료</th>
+                                </tr>
+                            </thead>
+                            <tbody id="work-todo-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4 flex justify-end">
+                        <button id="work-save-todo" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+                            <i class="fas fa-save mr-2"></i>저장
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Done 탭 패널 -->
+                <div id="work-tab-done" class="work-tab-panel hidden" data-tab="done">
+                    <!-- 모바일 카드 -->
+                    <div class="md:hidden space-y-3" id="work-done-cards"></div>
+                    <!-- 데스크톱 테이블 -->
+                    <div class="hidden md:block overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="text-gray-600">
+                                <tr>
+                                    <th class="text-left py-2 pr-4">일자</th>
+                                    <th class="text-left py-2 pr-4">한 일</th>
+                                </tr>
+                            </thead>
+                            <tbody id="work-done-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4 flex justify-end">
+                        <button id="work-save-done" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+                            <i class="fas fa-save mr-2"></i>저장
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 알람 List 탭 패널 -->
+                <div id="work-tab-alarms" class="work-tab-panel hidden" data-tab="alarms">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full text-sm">
+                            <thead class="text-gray-600">
+                                <tr>
+                                    <th class="text-left py-2 pr-4">현장명</th>
+                                    <th class="text-left py-2 pr-4">할 일</th>
+                                    <th class="text-left py-2">확인</th>
+                                </tr>
+                            </thead>
+                            <tbody id="work-alarms-tbody"></tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4 flex justify-end">
+                        <button id="work-save-alarms" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
+                            <i class="fas fa-save mr-2"></i>저장
+                        </button>
                     </div>
                 </div>
             </div>
@@ -766,6 +872,7 @@
     <script src="js/app.js"></script>
     <script src="js/temp-storage.js"></script>
     <script src="js/site-tabs.js"></script>
+    <script src="js/site-work.js"></script>
     <script src="js/site-basic.js"></script>
     <script src="js/site-contacts.js"></script>
     <script src="js/site-products.js"></script>

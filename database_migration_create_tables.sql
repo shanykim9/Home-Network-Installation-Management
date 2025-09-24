@@ -75,13 +75,42 @@ CREATE INDEX IF NOT EXISTS idx_site_household_project_no ON site_household_integ
 CREATE INDEX IF NOT EXISTS idx_site_common_site_id ON site_common_integrations(site_id);
 CREATE INDEX IF NOT EXISTS idx_site_common_project_no ON site_common_integrations(project_no);
 
--- 6. 고유 제약 조건 (한 현장당 하나의 레코드만)
-ALTER TABLE site_contacts ADD CONSTRAINT unique_site_contact UNIQUE (site_id);
-ALTER TABLE site_products ADD CONSTRAINT unique_site_product UNIQUE (site_id);
-ALTER TABLE site_household_integrations ADD CONSTRAINT unique_site_household UNIQUE (site_id);
-ALTER TABLE site_common_integrations ADD CONSTRAINT unique_site_common UNIQUE (site_id);
+-- 6. 고유 제약 조건 (한 현장당 하나의 레코드만) - 이미 있을 경우 건너뜀
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_site_contact') THEN
+        ALTER TABLE site_contacts ADD CONSTRAINT unique_site_contact UNIQUE (site_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_site_product') THEN
+        ALTER TABLE site_products ADD CONSTRAINT unique_site_product UNIQUE (site_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_site_household') THEN
+        ALTER TABLE site_household_integrations ADD CONSTRAINT unique_site_household UNIQUE (site_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'unique_site_common') THEN
+        ALTER TABLE site_common_integrations ADD CONSTRAINT unique_site_common UNIQUE (site_id);
+    END IF;
+END $$;
 
--- 7. 마이그레이션 완료 메시지
+-- 7. 현장별 업무관리 테이블 (work_items)
+CREATE TABLE IF NOT EXISTS work_items (
+    id BIGSERIAL PRIMARY KEY,
+    site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    status VARCHAR(10) NOT NULL DEFAULT 'todo', -- 'todo' | 'done'
+    alarm_date DATE NULL,
+    alarm_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+    done_date DATE NULL,
+    created_by INTEGER NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_work_items_site ON work_items(site_id);
+CREATE INDEX IF NOT EXISTS idx_work_items_status ON work_items(status);
+CREATE INDEX IF NOT EXISTS idx_work_items_alarm ON work_items(alarm_confirmed, alarm_date);
+
+-- 8. 마이그레이션 완료 메시지
 DO $$
 BEGIN
     RAISE NOTICE '✅ 현장 등록 관련 테이블 생성 완료!';
@@ -89,5 +118,6 @@ BEGIN
     RAISE NOTICE '   - site_products (제품수량)';
     RAISE NOTICE '   - site_household_integrations (세대부연동)';
     RAISE NOTICE '   - site_common_integrations (공용부연동)';
+    RAISE NOTICE '   - work_items (현장별 업무관리)';
     RAISE NOTICE '   - 인덱스 및 제약 조건 설정 완료';
 END $$;

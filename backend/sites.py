@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from datetime import datetime
+from datetime import datetime, date
 import jwt
 import os
 from dotenv import load_dotenv
@@ -892,6 +892,184 @@ def get_site_products(site_id):
         return jsonify({'error': str(e)}), 500
 
 
+
+# =============================
+# 현장별 업무관리: Work Items / Alarms
+# =============================
+
+@sites_bp.route('/sites/<int:site_id>/work-items', methods=['GET'])
+def list_work_items(site_id):
+    try:
+        # 인증 체크
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+
+        # 권한 확인
+        site = supabase.table('sites').select('id, created_by, site_name').eq('id', site_id).execute()
+        if not site.data:
+            return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
+        site_info = site.data[0]
+        if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
+            return jsonify({'error': '접근 권한이 없습니다.'}), 403
+
+        status = (request.args.get('status') or '').strip().lower()
+        q = supabase.table('work_items').select('*').eq('site_id', site_id)
+        if status in ['todo', 'done']:
+            q = q.eq('status', status)
+        rows = q.order('id', desc=True).execute()
+        return jsonify({'items': rows.data or []}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@sites_bp.route('/sites/<int:site_id>/work-items', methods=['POST'])
+def upsert_work_items(site_id):
+    """배열 업서트: To do/Done 일괄 저장
+    입력 스키마: { items: [ {id?, content, alarm_date?, status('todo'|'done'), done_date?} ] }
+    규칙:
+      - status=done 저장 시 To do 항목은 status만 'done'으로 업데이트(= To do에서 제외)
+      - status=todo 저장 시 alarm_confirmed는 기본 false 유지
+    """
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+
+        # 권한 확인
+        site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
+        if not site.data:
+            return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
+        site_info = site.data[0]
+        if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
+            return jsonify({'error': '접근 권한이 없습니다.'}), 403
+
+        data = request.get_json() or {}
+        items = data.get('items', [])
+        if not isinstance(items, list):
+            return jsonify({'error': 'items 배열이 필요합니다.'}), 400
+
+        saved = []
+        for it in items:
+            content = (it.get('content') or '').strip()
+            if not content:
+                continue
+            status = (it.get('status') or 'todo').strip().lower()
+            if status not in ['todo','done']:
+                status = 'todo'
+            payload_data = {
+                'site_id': site_id,
+                'content': content,
+                'status': status,
+                'alarm_date': (it.get('alarm_date') or None),
+                'done_date': (it.get('done_date') or None),
+                'updated_at': datetime.utcnow().isoformat(),
+                'created_by': payload['user_id']
+            }
+            # done 저장인데 done_date가 없으면 클라이언트 로컬 날짜를 못받은 경우를 대비해 서버 날짜로 보정
+            if status == 'done' and not payload_data['done_date']:
+                payload_data['done_date'] = date.today().isoformat()
+
+            # todo 상태인 경우 새 알람은 미확인으로 유지
+            if status == 'todo':
+                payload_data['alarm_confirmed'] = False
+
+            if it.get('id'):
+                # 업데이트 (상태 전환 포함)
+                res = supabase.table('work_items').update(payload_data).eq('id', it['id']).eq('site_id', site_id).execute()
+                if res.data:
+                    saved.append(res.data[0])
+            else:
+                payload_data['created_at'] = datetime.utcnow().isoformat()
+                res = supabase.table('work_items').insert(payload_data).execute()
+                if res.data:
+                    saved.append(res.data[0])
+
+        return jsonify({'message': '작업 항목이 저장되었습니다.', 'items': saved}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@sites_bp.route('/sites/<int:site_id>/alarms', methods=['GET'])
+def list_alarms(site_id):
+    """알람 목록: 조건 alarm_date <= today AND alarm_confirmed = false AND status='todo'"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+
+        # 권한 확인
+        site = supabase.table('sites').select('id, created_by, site_name').eq('id', site_id).execute()
+        if not site.data:
+            return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
+        site_info = site.data[0]
+        if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
+            return jsonify({'error': '접근 권한이 없습니다.'}), 403
+
+        # today는 클라이언트 로컬 날짜(YYYY-MM-DD) 전달 가능, 없으면 서버 날짜 사용
+        today = (request.args.get('today') or date.today().isoformat())
+
+        rows = supabase.table('work_items').select('*') \
+            .eq('site_id', site_id) \
+            .eq('status', 'todo') \
+            .eq('alarm_confirmed', False) \
+            .lte('alarm_date', today) \
+            .order('id', desc=True).execute()
+
+        items = rows.data or []
+        # site_name 포함
+        for it in items:
+            it['site_name'] = site_info.get('site_name')
+        return jsonify({'items': items, 'count': len(items)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@sites_bp.route('/sites/<int:site_id>/alarms/confirm', methods=['POST'])
+def confirm_alarms(site_id):
+    """체크된 알람을 확인 처리: 목록에서 제거되지만 원본의 alarm_date는 유지하고 alarm_confirmed=True로 설정"""
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+
+        # 권한 확인
+        site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
+        if not site.data:
+            return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
+        site_info = site.data[0]
+        if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
+            return jsonify({'error': '접근 권한이 없습니다.'}), 403
+
+        data = request.get_json() or {}
+        ids = data.get('ids', [])
+        if not ids:
+            return jsonify({'message': '확인할 항목이 없습니다.', 'updated': 0}), 200
+        # 일괄 업데이트
+        res = supabase.table('work_items').update({
+            'alarm_confirmed': True,
+            'updated_at': datetime.utcnow().isoformat()
+        }).in_('id', ids).eq('site_id', site_id).execute()
+        updated_count = len(res.data or [])
+        return jsonify({'message': '알람이 확인 처리되었습니다.', 'updated': updated_count}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # 프로젝트 번호 중복 체크
 @sites_bp.route('/check-project-no', methods=['POST'])

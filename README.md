@@ -20,7 +20,7 @@
 - 현장별 접근 권한 관리
 - 기본 정보, 연락처, 제품 수량 관리
 
-### 3. 일일업무관리
+### 3. 현장별 업무관리
 - 스마트플랜: 날짜별 할 일/한 일 관리
 - Action Plan: 날짜별 이슈사항 관리
 
@@ -44,7 +44,15 @@ FLASK_SECRET_KEY=your_secret_key_here
 ```
 
 ### 3. 데이터베이스 설정
-Supabase 콘솔에서 `database_schema.sql` 파일의 내용을 실행하여 테이블을 생성하세요.
+Supabase 콘솔에서 다음 순서로 SQL을 실행하세요.
+
+1) 기본 스키마 생성
+   - `database_migration_create_tables.sql`
+
+2) 현장별 업무관리(Work Items) 추가
+   - `database_migration_add_work_items.sql`
+
+모두 성공하면 `work_items` 테이블과 인덱스가 생성되어 To do/Done/알람 List 저장이 동작합니다.
 
 ### 4. 서버 실행
 ```bash
@@ -79,7 +87,7 @@ HN_App/
 현재 기본 틀이 완성되었습니다. 다음 단계로 세부 메뉴 기능들을 추가할 예정입니다:
 
 1. 현장 등록 상세 기능 (연락처, 제품 수량, 연동 정보)
-2. 일일업무관리 상세 기능 (스마트플랜, Action Plan)
+2. 현장별 업무관리 상세 기능 (스마트플랜, Action Plan)
 3. 현장별 전체조회 상세 기능
 4. Excel 다운로드 기능
 5. UI/UX 개선

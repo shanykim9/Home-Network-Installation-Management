@@ -16,6 +16,8 @@ function showPage(pageName) {
     // 모든 페이지 숨기기
     document.getElementById('main-dashboard').classList.add('hidden');
     document.getElementById('site-registration-page').classList.add('hidden');
+    const workPage = document.getElementById('site-work-page');
+    if (workPage) workPage.classList.add('hidden');
     
     // 요청된 페이지 보이기
     switch(pageName) {
@@ -26,9 +28,13 @@ function showPage(pageName) {
             document.getElementById('site-registration-page').classList.remove('hidden');
             break;
         case 'daily-work':
-            // TODO: 일일업무관리 페이지 구현
-            Swal.fire('알림', '일일업무관리 페이지는 곧 구현될 예정입니다.', 'info');
-            showMainDashboard();
+            if (workPage) {
+                workPage.classList.remove('hidden');
+                try{ if (typeof initWorkPage === 'function') initWorkPage(); }catch(_){ }
+            } else {
+                Swal.fire('알림', '현장별 업무관리 페이지를 찾을 수 없습니다.', 'warning');
+                showMainDashboard();
+            }
             break;
         case 'site-overview':
             // TODO: 현장별 전체조회 페이지 구현
