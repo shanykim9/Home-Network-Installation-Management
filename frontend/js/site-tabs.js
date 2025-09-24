@@ -224,8 +224,9 @@
   let loadSitesTimeout = null;
   async function loadSitesIntoSelect(){
     const select = document.getElementById('site-select');
-    if(!select) return;
-    
+    const workSelect = document.getElementById('work-site-select');
+    if(!select && !workSelect) return;
+
     // 로그인 토큰 없으면 호출하지 않음
     if (typeof TokenManager === 'undefined' || !TokenManager.isValid()) {
       return;
@@ -239,18 +240,28 @@
     // 300ms 디바운싱 적용
     loadSitesTimeout = setTimeout(async () => {
       try {
-        select.innerHTML = '<option value="">현장을 선택하세요</option>';
+        if (select) select.innerHTML = '<option value="">현장을 선택하세요</option>';
+        if (workSelect) workSelect.innerHTML = '<option value="">현장을 선택하세요</option>';
         const res = await apiRequest('/sites', { method: 'GET' });
         const seenNames = new Set();
-        (res.sites||[]).forEach(site=>{
+        const sites = (res.sites||[]);
+        sites.forEach(site=>{
           const nameKey = String(site.site_name||'').trim();
           if(!nameKey) return;
           if(seenNames.has(nameKey)) return; // 이름 기준 중복 제거
           seenNames.add(nameKey);
-          const opt = document.createElement('option');
-          opt.value = site.id;
-          opt.textContent = site.site_name;
-          select.appendChild(opt);
+          if (select) {
+            const opt = document.createElement('option');
+            opt.value = site.id;
+            opt.textContent = site.site_name;
+            select.appendChild(opt);
+          }
+          if (workSelect) {
+            const opt2 = document.createElement('option');
+            opt2.value = site.id;
+            opt2.textContent = site.site_name;
+            workSelect.appendChild(opt2);
+          }
         });
         console.log('✅ 사이트 목록 로드 완료:', seenNames.size + '개 현장');
       } catch(err) {

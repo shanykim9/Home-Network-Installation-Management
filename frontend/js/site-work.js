@@ -64,7 +64,7 @@
         </div>
         <div>
           <div class="text-xs text-gray-500 mb-1">할 일</div>
-          <textarea class="work-input-content w-full border rounded px-3 py-2" rows="2" placeholder="할 일을 입력">${row.content||''}</textarea>
+          <textarea class="work-input-content w-full border rounded px-3 py-2 resize-none" rows="2" placeholder="할 일을 입력">${row.content||''}</textarea>
         </div>
         <div>
           <label class="flex items-center gap-2 text-sm">
@@ -99,7 +99,7 @@
         </div>
         <div>
           <div class="text-xs text-gray-500 mb-1">한 일</div>
-          <textarea class="work-input-done-content w-full border rounded px-3 py-2" rows="2" placeholder="한 일을 입력">${row.content||''}</textarea>
+          <textarea class="work-input-done-content w-full border rounded px-3 py-2 resize-none" rows="2" placeholder="한 일을 입력">${row.content||''}</textarea>
         </div>
       </div>
     `;
@@ -318,7 +318,7 @@
     const navBtns = document.querySelectorAll('.work-tab-btn');
     navBtns.forEach(btn=> btn.addEventListener('click', ()=> activateWorkTab(btn.dataset.tab)) );
     const addBtn = document.getElementById('work-add-row');
-    if(addBtn) addBtn.addEventListener('click', addRow);
+    if(addBtn) addBtn.addEventListener('click', ()=>{ addRow(); setTimeout(()=>{ document.dispatchEvent(new CustomEvent('tab:activated', { detail: { tab: activeTab } })); }, 0); });
     const btnSaveTodo = document.getElementById('work-save-todo');
     if(btnSaveTodo) btnSaveTodo.addEventListener('click', saveTodo);
     const btnSaveDone = document.getElementById('work-save-done');
@@ -335,6 +335,28 @@
     activateWorkTab('todo');
     await loadSitesForWork();
     await fetchLists();
+
+    // textarea 자동 확장 (내부 스크롤 제거)
+    const autogrow = (ta)=>{
+      if(!ta) return;
+      ta.style.height = 'auto';
+      ta.style.overflowY = 'hidden';
+      ta.style.height = Math.min(ta.scrollHeight, 320) + 'px'; // 최대 약 8~10줄
+    };
+    const delegateAutogrow = ()=>{
+      document.querySelectorAll('.work-input-content, .work-input-done-content').forEach(el=>{
+        autogrow(el);
+        if(!el.__ag){
+          el.addEventListener('input', ()=> autogrow(el));
+          el.addEventListener('change', ()=> autogrow(el));
+          el.__ag = true;
+        }
+      });
+    };
+    // 최초/탭전환 후/행추가 후에도 보장
+    delegateAutogrow();
+    document.addEventListener('tab:activated', delegateAutogrow);
+    // addBtn 리스너는 위에서 한번만 등록하며, 탭 활성화 이벤트로 autogrow를 트리거합니다.
   }
 
   // 전역에서 호출
