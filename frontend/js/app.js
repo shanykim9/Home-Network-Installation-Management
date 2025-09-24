@@ -36,11 +36,6 @@ function showPage(pageName) {
                 showMainDashboard();
             }
             break;
-        case 'site-overview':
-            // TODO: 현장별 전체조회 페이지 구현
-            Swal.fire('알림', '현장별 전체조회 페이지는 곧 구현될 예정입니다.', 'info');
-            showMainDashboard();
-            break;
     }
 }
 
