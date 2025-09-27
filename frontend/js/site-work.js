@@ -5,25 +5,20 @@
   let rowsTodo = [];   // {id?, site_id, content, alarm_date, done(false), tempId}
   let rowsDone = [];   // {id?, site_id, content, done_date}
   let rowsAlarms = []; // {id, site_name, content, alarm_date, alarm_confirmed}
+  // 초기화 가드: 이벤트 중복 바인딩 방지
+  let __workInitDone = false;
 
   function getSelectedWorkSiteId(){
     const select = document.getElementById('work-site-select');
     return select && select.value ? parseInt(select.value,10) : null;
   }
 
-  // 사이트 셀렉트 로드 (권한 규칙: 자신의 현장만은 서버에서 이미 필터됨)
+  // 사이트 셀렉트 로드: 공용 로더로 통일 (중복 제거/디바운스 적용)
   async function loadSitesForWork(){
-    const select = document.getElementById('work-site-select');
-    if(!select) return;
-    select.innerHTML = '<option value="">현장을 선택하세요</option>';
     try{
-      const res = await apiRequest('/sites', { method: 'GET' });
-      (res.sites||[]).forEach(site=>{
-        const opt = document.createElement('option');
-        opt.value = site.id;
-        opt.textContent = site.site_name || `현장#${site.id}`;
-        select.appendChild(opt);
-      });
+      if(typeof window.loadSitesIntoSelect === 'function'){
+        await window.loadSitesIntoSelect();
+      }
     }catch(err){ console.error(err); }
   }
 
@@ -314,7 +309,15 @@
 
   // 초기화 진입점
   async function init(){
-    // 이벤트 바인딩
+    // 이벤트 바인딩 (중복 방지)
+    if(__workInitDone){
+      // 재진입 시 리스트만 재로딩
+      activateWorkTab('todo');
+      await fetchLists();
+      return;
+    }
+    __workInitDone = true;
+
     const navBtns = document.querySelectorAll('.work-tab-btn');
     navBtns.forEach(btn=> btn.addEventListener('click', ()=> activateWorkTab(btn.dataset.tab)) );
     const addBtn = document.getElementById('work-add-row');

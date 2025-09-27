@@ -101,8 +101,4 @@ def serve_static(path):
     return send_from_directory('../frontend', path)
 
 if __name__ == '__main__':
-    print("🚀 Flask 서버 시작 중...")
-    print("📡 서버 주소: http://0.0.0.0:5000")
-    print("🔧 디버그 모드: 활성화")
-    print("🌐 CORS: 모든 도메인 허용")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=False, host='0.0.0.0', port=5000)
