@@ -384,7 +384,10 @@
       }
 
       Swal.fire({ icon:'success', title:'저장 완료', text:'모든 데이터가 정상 저장되었습니다.', timer: 1800, showConfirmButton:false });
-      TempStorage.clearAllTempData();
+      // 현재 컨텍스트의 임시 데이터만 초기화 (다른 프로젝트 임시값 유지)
+      if (typeof TempStorage !== 'undefined' && TempStorage.clearCurrentContext) {
+        TempStorage.clearCurrentContext();
+      }
     } catch (error) {
       console.error('❌ 최종 저장 실패:', error);
       Swal.fire('오류', error?.message || '데이터 저장 중 오류가 발생했습니다.', 'error');
@@ -584,6 +587,75 @@
     const finalSaveBtn = document.getElementById('final-save-btn');
     if (finalSaveBtn) {
       finalSaveBtn.addEventListener('click', finalSave);
+    }
+
+    // 신규 현장 버튼: 폼 초기화 + 드래프트 임시저장 삭제
+    const newBtn = document.getElementById('new-site-btn');
+    if (newBtn) {
+      newBtn.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const confirm = await Swal.fire({
+          title: '신규 현장 등록',
+          html: '신규 작성 모드로 전환합니다. 현재 화면의 임시/입력 내용이 초기화됩니다.\n(이미 저장된 서버 데이터는 삭제되지 않습니다.)',
+          icon: 'question',
+          showCancelButton: true,
+          confirmButtonText: '초기화 후 진행',
+          cancelButtonText: '취소'
+        });
+        if (!confirm.isConfirmed) return;
+
+        try {
+          // 선택된 현장 해제
+          const siteSelect = document.getElementById('site-select');
+          if (siteSelect) siteSelect.value = '';
+
+          // 드래프트 컨텍스트 기준으로 임시데이터 초기화
+          if (typeof TempStorage !== 'undefined' && TempStorage.clearCurrentContext) {
+            // 임시로 project-no 입력 값을 비워 드래프트 키를 포스하도록 처리
+            const prefixEl = document.getElementById('project-no-prefix');
+            const numberEl = document.getElementById('project-no-number');
+            if (prefixEl) prefixEl.value = '';
+            if (numberEl) numberEl.value = '';
+            TempStorage.clearCurrentContext();
+          }
+
+          // 폼 초기화: 기본정보
+          const siteForm = document.getElementById('site-form');
+          if (siteForm) siteForm.reset();
+          // 프로젝트 No. 입력 포맷 기본값 복원
+          const prefixEl2 = document.getElementById('project-no-prefix');
+          if (prefixEl2 && !prefixEl2.value) prefixEl2.value = 'NA/';
+          const numberEl2 = document.getElementById('project-no-number');
+          if (numberEl2) numberEl2.value = '';
+          const projErr = document.getElementById('project-no-error');
+          if (projErr) projErr.textContent = '';
+          // 탭별 프로젝트 No. 표시 비우기
+          ['contacts-project-no','products-project-no','household-project-no','common-project-no'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+          });
+
+          // 연락처/제품/세대부/공용부 폼도 시각적 초기화
+          try { document.getElementById('contacts-form')?.reset(); } catch(_){}
+          try { document.getElementById('products-form')?.reset(); } catch(_){}
+          try { document.getElementById('household-form')?.reset(); } catch(_){}
+          try { document.getElementById('common-form')?.reset(); } catch(_){}
+
+          // 기본값 정책 재적용(세대부/공용부: Y)
+          try {
+            const idsY = ['lighting_enabled','standby_enabled','gas_enabled','cctv_enabled','metering_enabled','parking_enabled'];
+            idsY.forEach(id=>{ const el = document.getElementById(id); if(el) el.value = 'Y'; });
+          } catch(_){}
+
+          // 기본정보 탭으로 전환
+          activateTab('basic');
+
+          Swal.fire({ icon:'success', title:'신규 작성 모드', text:'빈 폼으로 전환되었습니다.', timer: 1400, showConfirmButton:false });
+        } catch (err) {
+          console.error('❌ 신규 모드 전환 실패:', err);
+          Swal.fire('오류','신규 모드 전환 중 문제가 발생했습니다.','error');
+        }
+      });
     }
 
     loadSitesIntoSelect();

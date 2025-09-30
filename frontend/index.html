@@ -277,6 +277,9 @@
                         <label class="hidden md:inline-block text-sm text-gray-600">현장 선택</label>
                         <select id="site-select" class="px-3 py-2 border border-gray-300 rounded-md min-w-[240px]"></select>
                         <button id="refresh-sites" class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded border"><i class="fas fa-rotate mr-1"></i>새로고침</button>
+                        <button id="new-site-btn" class="bg-blue-50 hover:bg-blue-100 text-blue-700 px-3 py-2 rounded border border-blue-200" title="신규 현장 등록">
+                            <i class="fas fa-plus mr-1"></i>신규
+                        </button>
                     </div>
                     <button onclick="showPage('dashboard')" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">
                         <i class="fas fa-arrow-left mr-2"></i>돌아가기
@@ -900,23 +903,65 @@
       })();
     </script>
 
-    <!-- 모바일 키보드 열림 시 FAB/탭바 밀림 보정 -->
+    <!-- 모바일 키보드 열림 시 FAB/탭바 밀림 보정 (iOS 16+ 오검지 방지 강화) -->
     <script>
       (function(){
         const fab = document.getElementById('fab-back-to-top');
         const tabbar = document.getElementById('mobile-tabbar');
         const vv = window.visualViewport;
+
+        // 텍스트 입력 포커스 여부 추적 (키보드 여부 추정용)
+        let isTextInputFocused = false;
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+
+        function isTextEditable(el){
+          if(!el) return false;
+          const tag = el.tagName;
+          const type = (el.type || '').toLowerCase();
+          if(tag === 'TEXTAREA') return true;
+          if(tag === 'INPUT'){
+            return ['text','search','tel','url','email','password','number'].includes(type);
+          }
+          if(el.isContentEditable) return true;
+          return false;
+        }
+
+        document.addEventListener('focusin', ()=>{ isTextInputFocused = isTextEditable(document.activeElement); });
+        document.addEventListener('focusout', ()=>{ isTextInputFocused = false; setTimeout(resetUI, 0); });
+
         if(!vv) return;
 
-        function adjustUI(){
-          const heightDiff = window.innerHeight - vv.height - vv.offsetTop; // 가려지는 하단 높이(키보드 유무)
-          const extra = Math.max(0, Math.round(heightDiff));
-          if(fab){ fab.style.bottom = (extra > 0 ? (extra + 16) : 24) + 'px'; }
-          if(tabbar){ tabbar.style.bottom = (extra > 0 ? (extra) : 0) + 'px'; }
+        function resetUI(){
+          if(fab){ fab.style.bottom = '24px'; }
+          if(tabbar){ tabbar.style.bottom = '0px'; }
         }
+
+        function adjustUI(){
+          // 가려지는 하단 높이(키보드 유무 추정)
+          const heightDiff = window.innerHeight - vv.height - vv.offsetTop;
+          const extra = Math.max(0, Math.round(heightDiff));
+
+          // 키보드로 판단할 최소 임계값: 화면의 22% 또는 180px 중 큰 값
+          const ratioThreshold = Math.round(window.innerHeight * 0.22);
+          const pixelThreshold = 180;
+          const minThreshold = Math.max(pixelThreshold, ratioThreshold);
+
+          // iOS에서는 텍스트 입력 포커스 + 충분한 extra + 축소되지 않은(scale=1) 뷰포트일 때만 보정
+          const keyboardLikely = isIOS
+            ? (isTextInputFocused && extra >= minThreshold && vv.height < window.innerHeight && vv.scale === 1)
+            : (extra >= minThreshold && vv.height < window.innerHeight);
+
+          if(keyboardLikely){
+            if(fab){ fab.style.bottom = (extra + 16) + 'px'; }
+            if(tabbar){ tabbar.style.bottom = extra + 'px'; }
+          }else{
+            resetUI();
+          }
+        }
+
         vv.addEventListener('resize', adjustUI);
         vv.addEventListener('scroll', adjustUI);
-        window.addEventListener('orientationchange', adjustUI);
+        window.addEventListener('orientationchange', ()=>{ resetUI(); setTimeout(adjustUI, 0); });
         adjustUI();
       })();
     </script>
