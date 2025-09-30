@@ -959,8 +959,28 @@
           }
         }
 
+        // iOS 일반 스크롤 시에도 잔여 보정값 제거(키보드가 아닌 콘텐츠 스크롤 상황)
+        let scrollDebounce = null;
+        function onWindowScroll(){
+          if(!isIOS) return;
+          if(scrollDebounce) return;
+          scrollDebounce = setTimeout(()=>{
+            scrollDebounce = null;
+            // 현재 상태가 키보드로 판단되지 않으면 즉시 리셋
+            const heightDiff = window.innerHeight - vv.height - vv.offsetTop;
+            const extra = Math.max(0, Math.round(heightDiff));
+            const ratioThreshold = Math.round(window.innerHeight * 0.22);
+            const pixelThreshold = 180;
+            const minThreshold = Math.max(pixelThreshold, ratioThreshold);
+            const keyboardLikely = isTextInputFocused && extra >= minThreshold && vv.height < window.innerHeight && vv.scale === 1;
+            if(!keyboardLikely){ resetUI(); }
+          }, 60);
+        }
+
         vv.addEventListener('resize', adjustUI);
         vv.addEventListener('scroll', adjustUI);
+        // 일반 페이지 스크롤에도 보정 재평가(iOS 한정)
+        window.addEventListener('scroll', onWindowScroll, { passive: true });
         window.addEventListener('orientationchange', ()=>{ resetUI(); setTimeout(adjustUI, 0); });
         adjustUI();
       })();
