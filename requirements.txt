@@ -6,4 +6,4 @@ postgrest==0.10.8
 bcrypt==4.0.1
 PyJWT==2.8.0
 openpyxl==3.1.2
-pandas==2.1.1
+pandas>=2.2.2

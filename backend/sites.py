@@ -8,6 +8,9 @@ from supabase import create_client, Client
 # 환경 변수 로드
 load_dotenv()
 
+# auth.py와 동일한 기본 비밀키 정책 적용 (토큰 검증 시 일관성)
+SECRET_KEY = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
+
 # Supabase 클라이언트 초기화
 supabase_url = os.getenv('SUPABASE_URL')
 supabase_key = os.getenv('SUPABASE_ANON_KEY')
@@ -54,7 +57,7 @@ else:
 # JWT 토큰 검증 함수
 def verify_token(token):
     try:
-        payload = jwt.decode(token, os.getenv('FLASK_SECRET_KEY'), algorithms=['HS256'])
+        payload = jwt.decode(token, str(SECRET_KEY or 'dev-secret-key-change-in-production'), algorithms=['HS256'])
         return payload
     except jwt.ExpiredSignatureError:
         return None

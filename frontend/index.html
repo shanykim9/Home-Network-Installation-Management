@@ -64,8 +64,9 @@
                         <label class="block text-gray-700 text-sm font-bold mb-2" for="email">
                             이메일
                         </label>
-                        <input id="email" type="email" required
+                        <input id="email" type="email" required list="email-suggestions" autocomplete="username email"
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                        <datalist id="email-suggestions"></datalist>
                     </div>
                     <div class="mb-6">
                         <label class="block text-gray-700 text-sm font-bold mb-2" for="password">
@@ -73,6 +74,10 @@
                         </label>
                         <input id="password" type="password" required
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div class="mb-4 flex items-center gap-2">
+                        <input id="remember-email" type="checkbox" class="h-4 w-4">
+                        <label for="remember-email" class="text-sm text-gray-700 select-none">이메일 기억하기</label>
                     </div>
                     <button type="submit" 
                         class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
