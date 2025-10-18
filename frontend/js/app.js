@@ -18,6 +18,8 @@ function showPage(pageName) {
     document.getElementById('site-registration-page').classList.add('hidden');
     const workPage = document.getElementById('site-work-page');
     if (workPage) workPage.classList.add('hidden');
+    const photosPage = document.getElementById('site-photos-page');
+    if (photosPage) photosPage.classList.add('hidden');
     
     // 요청된 페이지 보이기
     switch(pageName) {
@@ -33,6 +35,15 @@ function showPage(pageName) {
                 try{ if (typeof initWorkPage === 'function') initWorkPage(); }catch(_){ }
             } else {
                 Swal.fire('알림', '현장별 업무관리 페이지를 찾을 수 없습니다.', 'warning');
+                showMainDashboard();
+            }
+            break;
+        case 'site-photos':
+            if (photosPage) {
+                photosPage.classList.remove('hidden');
+                try{ if (typeof initPhotosPage === 'function') initPhotosPage(); }catch(_){ }
+            } else {
+                Swal.fire('알림', '현장 사진등록 및 관리 페이지를 찾을 수 없습니다.', 'warning');
                 showMainDashboard();
             }
             break;

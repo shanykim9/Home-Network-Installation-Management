@@ -1,9 +1,10 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_from_directory
 from datetime import datetime, date
 import jwt
 import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from pathlib import Path
 
 # 환경 변수 로드
 load_dotenv()
@@ -14,6 +15,7 @@ SECRET_KEY = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production'
 # Supabase 클라이언트 초기화
 supabase_url = os.getenv('SUPABASE_URL')
 supabase_key = os.getenv('SUPABASE_ANON_KEY')
+supabase_service_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')  # Storage 전용 사용 권장
 
 print(f"🌐 Supabase URL: {supabase_url}")
 print(f"🔑 Supabase Key: {supabase_key[:20]}..." if supabase_key else "❌ Supabase Key 없음")
@@ -35,6 +37,8 @@ if not supabase_url or not supabase_key:
             return DummyResult()
         def update(self, data):
             return DummyResult()
+        def delete(self):
+            return self
         def execute(self):
             return DummyResult()
         def limit(self, n):
@@ -42,6 +46,8 @@ if not supabase_url or not supabase_key:
         def order(self, field, desc=False):
             return self
         def in_(self, field, values):
+            return self
+        def range(self, start, end):
             return self
     
     class DummyResult:
@@ -53,6 +59,14 @@ if not supabase_url or not supabase_key:
 else:
     supabase: Client = create_client(supabase_url, supabase_key)
     print("✅ Supabase 클라이언트 초기화 완료")
+    supabase_service: Client | None = None
+    try:
+        if supabase_service_key:
+            supabase_service = create_client(supabase_url, supabase_service_key)
+            print("✅ Supabase 서비스 키 클라이언트 준비(스토리지 전용)")
+    except Exception:
+        supabase_service = None
+        print("⚠️ Supabase 서비스 키 클라이언트 초기화 실패: 환경 변수 또는 권한을 확인하세요")
 
 # JWT 토큰 검증 함수
 def verify_token(token):
@@ -385,11 +399,31 @@ def get_site_contacts(site_id):
         site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
         if not site.data:
             return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
+        # 사진 목록은 로그인한 사용자라면 모두 열람 가능(팀 공유 정책 없음)
         site_info = site.data[0]
-        if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
-            return jsonify({'error': '접근 권한이 없습니다.'}), 403
         contacts = supabase.table('site_contacts').select('*').eq('site_id', site_id).limit(1).execute()
-        return jsonify({'contacts': contacts.data[0] if contacts.data else None}), 200
+        base = contacts.data[0] if contacts.data else None
+
+        # 추가 연락처(복수) 목록 로드: sales|construction|installer|network
+        def _load_list(kind: str):
+            try:
+                rows = supabase.table('site_contact_people').select('*').eq('site_id', site_id).eq('person_type', kind).order('id', desc=True).execute()
+                return [{'name': (r.get('name') or ''), 'phone': (r.get('phone') or '')} for r in (rows.data or [])]
+            except Exception as e_list:
+                msg = str(e_list)
+                # 테이블이 없는 경우에도 빈 리스트 반환
+                if 'site_contact_people' in msg and ('does not exist' in msg or 'relation' in msg or 'schema cache' in msg):
+                    return []
+                # 기타 오류는 빈 리스트로 처리(UX 우선)
+                return []
+
+        result = base or {}
+        result = dict(result)
+        result['sales_list'] = _load_list('sales')
+        result['construction_list'] = _load_list('construction')
+        result['installer_list'] = _load_list('installer')
+        result['network_list'] = _load_list('network')
+        return jsonify({'contacts': result}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -422,8 +456,7 @@ def upsert_site_products(site_id):
         if not site.data:
             return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
         site_info = site.data[0]
-        if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
-            return jsonify({'error': '접근 권한이 없습니다.'}), 403
+        # 사진 업로드는 로그인한 사용자라면 모두 가능(팀 공유 정책 없음)
         
         payload_data = {
             'site_id': site_id,
@@ -497,6 +530,7 @@ def upsert_site_contacts(site_id):
             'project_no': data.get('project_no'),
             'pm_name': data.get('pm_name'),
             'pm_phone': data.get('pm_phone'),
+            # 단일 필드(하위 리스트의 첫 항목으로 보정 가능)
             'sales_manager_name': data.get('sales_manager_name'),
             'sales_manager_phone': data.get('sales_manager_phone'),
             'construction_manager_name': data.get('construction_manager_name'),
@@ -512,15 +546,77 @@ def upsert_site_contacts(site_id):
         payload_data = {k: v for k, v in payload_data.items() if v is not None}
         print(f"💾 저장할 데이터: {payload_data}")
         
+        # 1) 메인 레코드 upsert
         existing = supabase.table('site_contacts').select('id').eq('site_id', site_id).limit(1).execute()
         if existing.data:
             contact_id = existing.data[0]['id']
             result = supabase.table('site_contacts').update(payload_data).eq('id', contact_id).execute()
         else:
             result = supabase.table('site_contacts').insert(payload_data).execute()
-        
+
+        # 2) 복수 연락처 리스트 저장(있다면 교체 방식)
+        def _normalize_list(arr):
+            if not isinstance(arr, list):
+                return []
+            norm = []
+            for it in arr:
+                name = str((it or {}).get('name') or '').strip()
+                phone = str((it or {}).get('phone') or '').strip()
+                if not name and not phone:
+                    continue
+                norm.append({'name': name, 'phone': phone})
+            return norm
+
+        sales_list = _normalize_list(data.get('sales_list'))
+        construction_list = _normalize_list(data.get('construction_list'))
+        installer_list = _normalize_list(data.get('installer_list'))
+        network_list = _normalize_list(data.get('network_list'))
+
+        # 단일 필드 보정: 첫 항목을 반영(이전 스키마와 호환)
+        def _set_first_to_payload(list_val, name_key, phone_key):
+            if list_val and not payload_data.get(name_key):
+                payload_data[name_key] = list_val[0]['name']
+            if list_val and not payload_data.get(phone_key):
+                payload_data[phone_key] = list_val[0]['phone']
+        _set_first_to_payload(sales_list, 'sales_manager_name', 'sales_manager_phone')
+        _set_first_to_payload(construction_list, 'construction_manager_name', 'construction_manager_phone')
+        _set_first_to_payload(installer_list, 'installer_name', 'installer_phone')
+        _set_first_to_payload(network_list, 'network_manager_name', 'network_manager_phone')
+
+        # 테이블 없을 수 있으므로 안전 처리
+        def _replace(kind: str, items: list):
+            try:
+                # 기존 삭제
+                supabase.table('site_contact_people').delete().eq('site_id', site_id).eq('person_type', kind).execute()
+            except Exception as e_del:
+                # 생성 안된 경우 무시
+                if 'site_contact_people' not in str(e_del):
+                    pass
+            if not items:
+                return
+            try:
+                payload_rows = [{
+                    'site_id': site_id,
+                    'person_type': kind,
+                    'name': it['name'],
+                    'phone': it['phone'],
+                    'created_by': payload['user_id'],
+                    'created_at': datetime.utcnow().isoformat(),
+                    'updated_at': datetime.utcnow().isoformat()
+                } for it in items]
+                supabase.table('site_contact_people').insert(payload_rows).execute()
+            except Exception as e_ins:
+                # 테이블이 없으면 조용히 패스(프론트에서 SQL 적용 유도)
+                if 'site_contact_people' not in str(e_ins):
+                    print(f"⚠️ site_contact_people 저장 오류({kind}): {e_ins}")
+
+        _replace('sales', sales_list)
+        _replace('construction', construction_list)
+        _replace('installer', installer_list)
+        _replace('network', network_list)
+
         print(f"✅ 연락처 저장 성공: {result.data[0] if result.data else 'None'}")
-        return jsonify({'message': '연락처가 저장되었습니다.', 'contacts': result.data[0]}), 200
+        return jsonify({'message': '연락처가 저장되었습니다.', 'contacts': result.data[0] if result.data else payload_data}), 200
     except Exception as e:
         print(f"❌ 연락처 저장 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500
@@ -896,6 +992,243 @@ def get_site_products(site_id):
 
 
 
+# =============================
+# 현장 사진등록 및 관리
+# =============================
+
+@sites_bp.route('/sites/<int:site_id>/photos', methods=['GET'])
+def list_site_photos(site_id):
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+
+        # 권한 확인
+        site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
+        if not site.data:
+            return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
+        site_info = site.data[0]
+        if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
+            return jsonify({'error': '접근 권한이 없습니다.'}), 403
+
+        # 페이징 파라미터 (기본: page=1, page_size=20)
+        try:
+            page = max(1, int(request.args.get('page', '1')))
+        except Exception:
+            page = 1
+        try:
+            page_size = int(request.args.get('page_size', '20'))
+            if page_size <= 0 or page_size > 100:
+                page_size = 20
+        except Exception:
+            page_size = 20
+        start = (page - 1) * page_size
+        end = start + page_size - 1
+
+        # count 포함하여 조회(가능한 경우)
+        try:
+            rows = supabase.table('site_photos').select('*', count='exact').eq('site_id', site_id).order('id', desc=True).range(start, end).execute()
+            total = getattr(rows, 'count', None)
+        except Exception as e_sel:
+            # 테이블 미생성/스키마 캐시 오류 시 빈 목록
+            msg = str(e_sel)
+            if 'site_photos' in msg and (
+                'relation' in msg or 'does not exist' in msg or 'schema cache' in msg or 'PGRST' in msg
+            ):
+                return jsonify({'items': [], 'page': page, 'page_size': page_size, 'total': 0, 'has_more': False}), 200
+            try:
+                rows = supabase.table('site_photos').select('*').eq('site_id', site_id).order('id', desc=True).range(start, end).execute()
+                total = None
+            except Exception as e_sel2:
+                return jsonify({'error': f'사진 목록 조회 실패: {str(e_sel2)}'}), 500
+
+        items = rows.data or []
+        has_more = False
+        if total is not None:
+            has_more = (start + len(items)) < total
+        else:
+            has_more = len(items) == page_size
+
+        return jsonify({'items': items, 'page': page, 'page_size': page_size, 'total': total, 'has_more': has_more}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@sites_bp.route('/sites/<int:site_id>/photos', methods=['POST'])
+def upload_site_photo(site_id):
+    """멀티파트 업로드: title(텍스트), file(이미지)
+    - 촬영/앨범 모두 클라이언트가 파일로 업로드
+    - 서버는 저장 시 uploaded_at(UTC ISO) 자동 기록
+    - 파일은 backend/uploads/YYYY/MM/site_{site_id}_<timestamp>.<ext>
+    - DB에는 파일 메타와 표시용 경로('/uploads/..') 저장
+    """
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+
+        # 권한 확인
+        site = supabase.table('sites').select('id, created_by, site_name').eq('id', site_id).execute()
+        if not site.data:
+            return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
+        site_info = site.data[0]
+        if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
+            return jsonify({'error': '접근 권한이 없습니다.'}), 403
+
+        # 멀티파트 파싱
+        title = (request.form.get('title') or '').strip()
+        file = request.files.get('file')
+        if not file:
+            return jsonify({'error': '이미지 파일이 필요합니다.'}), 400
+
+        # 파일 크기 제한 (8MB)
+        try:
+            content = file.read()
+        except Exception:
+            return jsonify({'error': '파일을 읽을 수 없습니다.'}), 400
+        MAX_SIZE = 8 * 1024 * 1024
+        if content is None or len(content) == 0:
+            return jsonify({'error': '빈 파일은 업로드할 수 없습니다.'}), 400
+        if len(content) > MAX_SIZE:
+            return jsonify({'error': '파일이 너무 큽니다. 최대 8MB까지 업로드할 수 있습니다.'}), 413
+
+        now = datetime.utcnow()
+        yyyy = str(now.year)
+        mm = str(now.month).zfill(2)
+
+        public_path = None
+        # Supabase Storage 사용 여부
+        if supabase_url and supabase_key:
+            try:
+                from werkzeug.utils import secure_filename
+                orig = secure_filename(file.filename or 'image')
+                ext = (orig.rsplit('.', 1)[-1].lower() if '.' in orig else 'jpg')
+                object_path = f"site_{site_id}/{yyyy}/{mm}/site_{site_id}_{int(now.timestamp()*1000)}.{ext}"
+                bucket = 'site-photos'
+
+                # 업로드
+                storage_client = None
+                try:
+                    storage_client = (supabase_service if 'supabase_service' in globals() and supabase_service else supabase)
+                except Exception:
+                    storage_client = supabase
+                storage = storage_client.storage.from_(bucket)
+                content_type = file.mimetype or 'application/octet-stream'
+                # supabase-py는 file_options의 키를 camelCase로 기대합니다.
+                storage.upload(object_path, content, { 'contentType': content_type, 'upsert': 'false' })
+
+                # 퍼블릭 URL 구성
+                public_path = f"{supabase_url}/storage/v1/object/public/{bucket}/{object_path}"
+            except Exception as up_err:
+                return jsonify({'error': '스토리지 업로드 실패', 'error_detail': str(up_err)}), 500
+        else:
+            # 로컬 저장 (더미 모드)
+            base_dir = Path(__file__).resolve().parent
+            uploads_dir = base_dir / 'uploads' / yyyy / mm
+            uploads_dir.mkdir(parents=True, exist_ok=True)
+            from werkzeug.utils import secure_filename
+            orig = secure_filename(file.filename or 'image')
+            ext = (orig.rsplit('.', 1)[-1].lower() if '.' in orig else 'jpg')
+            fname = f"site_{site_id}_{int(now.timestamp()*1000)}.{ext}"
+            full_path = uploads_dir / fname
+            try:
+                with open(full_path, 'wb') as f:
+                    f.write(content)
+            except Exception as werr:
+                return jsonify({'error': '로컬 파일 저장 실패', 'error_detail': str(werr)}), 500
+            public_path = f"/uploads/{yyyy}/{mm}/{fname}"
+
+        row = {
+            'site_id': site_id,
+            'title': title or None,
+            'image_url': public_path,
+            'uploaded_at': now.isoformat(),
+            'created_by': payload['user_id']
+        }
+
+        try:
+            res = supabase.table('site_photos').insert(row).execute()
+            saved = res.data[0] if res.data else row
+        except Exception as ins_err:
+            msg = str(ins_err)
+            if 'site_photos' in msg and (
+                'relation' in msg or 'does not exist' in msg or 'schema cache' in msg or 'PGRST' in msg
+            ):
+                return jsonify({'error': 'site_photos 테이블이 없습니다. Supabase SQL로 테이블을 먼저 생성해 주세요.'}), 500
+            return jsonify({'error': '사진 메타 저장 실패', 'error_detail': msg}), 500
+
+        return jsonify({'message': '사진이 저장되었습니다.', 'photo': saved}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@sites_bp.route('/sites/<int:site_id>/photos/<int:photo_id>', methods=['DELETE'])
+def delete_site_photo(site_id, photo_id):
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+
+        # 권한 확인: 사진 레코드와 현장 소유자 검사
+        site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
+        if not site.data:
+            return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
+        site_info = site.data[0]
+
+        photo_rows = supabase.table('site_photos').select('id, site_id, created_by, image_url').eq('id', photo_id).eq('site_id', site_id).limit(1).execute()
+        if not photo_rows.data:
+            return jsonify({'error': '사진을 찾을 수 없습니다.'}), 404
+        photo = photo_rows.data[0]
+
+        # 사진 삭제는 로그인한 사용자라면 모두 가능(팀 공유 정책 없음)
+
+        # 파일 삭제 시도 (베스트에포트)
+        try:
+            public_path = photo.get('image_url') or ''
+            if supabase_url and supabase_key and '/storage/v1/object/public/' in public_path:
+                # 예: https://<proj>.supabase.co/storage/v1/object/public/site-photos/site_1/....jpg
+                try:
+                    bucket = 'site-photos'
+                    prefix = f"{supabase_url}/storage/v1/object/public/{bucket}/"
+                    if public_path.startswith(prefix):
+                        object_path = public_path[len(prefix):]
+                        storage_client = None
+                        try:
+                            storage_client = (supabase_service if 'supabase_service' in globals() and supabase_service else supabase)
+                        except Exception:
+                            storage_client = supabase
+                        storage_client.storage.from_(bucket).remove([object_path])
+                except Exception:
+                    pass
+            elif public_path.startswith('/uploads/'):
+                # 로컬 파일 삭제
+                rel = public_path[len('/uploads/'):]
+                base_dir = Path(__file__).resolve().parent
+                full_path = base_dir / 'uploads' / rel
+                if full_path.exists():
+                    try:
+                        full_path.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        supabase.table('site_photos').delete().eq('id', photo_id).eq('site_id', site_id).execute()
+        return jsonify({'message': '사진이 삭제되었습니다.'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 # =============================
 # 현장별 업무관리: Work Items / Alarms
 # =============================

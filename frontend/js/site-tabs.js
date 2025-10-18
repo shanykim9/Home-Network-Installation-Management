@@ -225,7 +225,8 @@
   async function loadSitesIntoSelect(){
     const select = document.getElementById('site-select');
     const workSelect = document.getElementById('work-site-select');
-    if(!select && !workSelect) return;
+    const photosSelect = document.getElementById('photos-site-select');
+    if(!select && !workSelect && !photosSelect) return;
 
     // 로그인 토큰 없으면 호출하지 않음
     if (typeof TokenManager === 'undefined' || !TokenManager.isValid()) {
@@ -242,6 +243,7 @@
       try {
         if (select) select.innerHTML = '<option value="">현장을 선택하세요</option>';
         if (workSelect) workSelect.innerHTML = '<option value="">현장을 선택하세요</option>';
+        if (photosSelect) photosSelect.innerHTML = '<option value="">현장을 선택하세요</option>';
         const res = await apiRequest('/sites', { method: 'GET' });
         const seenNames = new Set();
         const sites = (res.sites||[]);
@@ -261,6 +263,12 @@
             opt2.value = site.id;
             opt2.textContent = site.site_name;
             workSelect.appendChild(opt2);
+          }
+          if (photosSelect) {
+            const opt3 = document.createElement('option');
+            opt3.value = site.id;
+            opt3.textContent = site.site_name;
+            photosSelect.appendChild(opt3);
           }
         });
         console.log('✅ 사이트 목록 로드 완료:', seenNames.size + '개 현장');

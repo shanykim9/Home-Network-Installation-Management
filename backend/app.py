@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from supabase import create_client, Client
 import pandas as pd
 from io import BytesIO
+from pathlib import Path
 
 # 환경 변수 로드
 load_dotenv()
@@ -100,6 +101,14 @@ def serve_index():
 @app.route('/<path:path>')
 def serve_static(path):
     return send_from_directory('../frontend', path)
+
+# 업로드 파일 서빙 (이미지 등)
+@app.route('/uploads/<path:filename>')
+def serve_uploads(filename):
+    base_dir = Path(__file__).resolve().parent
+    uploads_dir = base_dir / 'uploads'
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    return send_from_directory(str(uploads_dir), filename)
 
 if __name__ == '__main__':
     app.run(debug=False, host='0.0.0.0', port=5000)

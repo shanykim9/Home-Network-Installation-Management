@@ -22,9 +22,23 @@ CREATE INDEX IF NOT EXISTS idx_work_items_alarm ON work_items(alarm_confirmed, a
 
 COMMIT;
 
+-- 별도: 현장 사진 테이블 (필요 시 함께 적용)
+BEGIN;
+CREATE TABLE IF NOT EXISTS site_photos (
+    id BIGSERIAL PRIMARY KEY,
+    site_id INTEGER NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    title TEXT,
+    image_url TEXT NOT NULL,
+    uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+    created_by INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_site_photos_site ON site_photos(site_id);
+COMMIT;
+
 -- 롤백 예시
 -- BEGIN;
 --   DROP TABLE IF EXISTS work_items;
+--   DROP TABLE IF EXISTS site_photos;
 -- COMMIT;
 
 

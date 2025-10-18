@@ -77,6 +77,12 @@
       document.getElementById('installer_phone').value = c.installer_phone || '';
       document.getElementById('network_manager_name').value = c.network_manager_name || '';
       document.getElementById('network_manager_phone').value = c.network_manager_phone || '';
+
+      // 동적 리스트 반영
+      buildDynamicList('sales-list', c.sales_list||[], 'sales');
+      buildDynamicList('construction-list', c.construction_list||[], 'construction');
+      buildDynamicList('installer-list', c.installer_list||[], 'installer');
+      buildDynamicList('network-list', c.network_list||[], 'network');
     }catch(err){
       console.error(err);
       Swal.fire('오류','연락처 정보를 불러오지 못했습니다.','error');
@@ -109,6 +115,42 @@
   }
 
   // 원복: 일반 저장 방식
+  function collectDynamicList(containerId){
+    const wrap = document.getElementById(containerId);
+    if(!wrap) return [];
+    const rows = Array.from(wrap.querySelectorAll('[data-row="1"]'));
+    return rows.map(r=>({
+      name: String(r.querySelector('input[data-field="name"]')?.value||'').trim(),
+      phone: String(r.querySelector('input[data-field="phone"]')?.value||'').trim(),
+    })).filter(it=>it.name || it.phone);
+  }
+
+  function buildDynamicList(containerId, items, kind){
+    const wrap = document.getElementById(containerId);
+    if(!wrap) return;
+    // 기존 추가 행 제거(첫 기본 행 제외)
+    Array.from(wrap.children).forEach((ch, idx)=>{ if(idx>0) ch.remove(); });
+    const addBtnId = `${kind}-add`;
+    const addBtn = document.getElementById(addBtnId);
+    function addRow(name='', phone=''){
+      const row = document.createElement('div');
+      row.className = 'flex gap-2 items-center';
+      row.setAttribute('data-row','1');
+      row.innerHTML = `
+        <input type="text" data-field="name" class="flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="이름" value="${name}">
+        <input type="text" data-field="phone" class="w-44 px-3 py-2 border border-gray-300 rounded-md" placeholder="전화" value="${phone}">
+        <button type="button" class="px-3 py-2 border rounded text-red-600" data-remove="1">-</button>
+      `;
+      wrap.appendChild(row);
+      const rm = row.querySelector('[data-remove="1"]');
+      rm.addEventListener('click', ()=>{ row.remove(); });
+    }
+    (items||[]).forEach(it=> addRow(it.name||'', it.phone||''));
+    if(addBtn){
+      addBtn.onclick = ()=> addRow('', '');
+    }
+  }
+
   async function conservativeSaveContacts(){
     const siteId = getSelectedSiteId();
     if(!siteId){
@@ -153,6 +195,12 @@
     payload.installer_phone = draft.installer_phone || null;
     payload.network_manager_name = draft.network_manager_name || null;
     payload.network_manager_phone = draft.network_manager_phone || null;
+    // 동적 리스트 수집 및 추가
+    payload.sales_list = collectDynamicList('sales-list');
+    payload.construction_list = collectDynamicList('construction-list');
+    payload.installer_list = collectDynamicList('installer-list');
+    payload.network_list = collectDynamicList('network-list');
+
     try{
       await apiRequest(`/sites/${siteId}/contacts`, { method: 'POST', body: payload });
       if(!window.__batchSaving){ Swal.fire({ icon:'success', title:'저장 완료', timer:1500, showConfirmButton:false }); }
@@ -271,6 +319,14 @@
 
     attachUsersToInput(pmName, pmPhone);
     attachUsersToInput(salesName, salesPhone);
+
+    // 빈 상태에서도 + 버튼이 동작하도록 기본 빌드 실행
+    try{
+      buildDynamicList('sales-list', [], 'sales');
+      buildDynamicList('construction-list', [], 'construction');
+      buildDynamicList('installer-list', [], 'installer');
+      buildDynamicList('network-list', [], 'network');
+    }catch(_){/* ignore */}
 
     // 탭 활성화/로그인 완료 시 서버 우선 로드 후 임시값 보조 적용
     async function reloadContactsFromServerThenOverlay(){

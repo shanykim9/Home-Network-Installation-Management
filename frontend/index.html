@@ -162,6 +162,17 @@
                     </div>
                 </div>
 
+                <!-- 현장 사진등록 및 관리 카드 -->
+                <div class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow cursor-pointer" onclick="showPage('site-photos')">
+                    <div class="flex items-start md:items-center">
+                        <i class="fas fa-camera text-purple-500 text-3xl mr-4 flex-shrink-0 leading-none"></i>
+                        <div>
+                            <h3 class="text-lg font-semibold">현장 사진등록 및 관리</h3>
+                            <p class="text-gray-600">촬영/앨범에서 등록, 제목/일자 자동 저장</p>
+                        </div>
+                    </div>
+                </div>
+
                 
             </div>
         </div>
@@ -272,6 +283,48 @@
             </div>
         </div>
 
+        <!-- 현장 사진등록 및 관리 페이지 -->
+        <div id="site-photos-page" class="hidden">
+            <div class="bg-white p-6 pb-24 rounded-lg shadow-md">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
+                    <h2 class="text-2xl font-bold flex items-center gap-3">
+                        현장 사진등록 및 관리
+                    </h2>
+                    <div class="flex flex-col items-start gap-1 md:flex-row md:items-center md:gap-2">
+                        <label class="text-lg text-gray-700 md:hidden">현장선택</label>
+                        <label class="hidden md:inline-block text-sm text-gray-600">현장 선택</label>
+                        <select id="photos-site-select" class="px-3 py-2 border border-gray-300 rounded-md min-w-[240px]"></select>
+                        <button id="photos-refresh-sites" class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-2 rounded border"><i class="fas fa-rotate mr-1"></i>새로고침</button>
+                        <button onclick="showPage('dashboard')" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded md:ml-2">
+                            <i class="fas fa-arrow-left mr-2"></i>돌아가기
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 상단 입력 영역: 제목 + 업로드 버튼들 -->
+                <div class="flex flex-col md:flex-row gap-3 items-stretch md:items-end mb-6">
+                    <div class="flex-1">
+                        <label class="block text-sm text-gray-700 mb-1">제목</label>
+                        <input id="photo-title" type="text" placeholder="간략한 제목을 입력" class="w-full px-3 py-2 border rounded-md">
+                    </div>
+                    <div class="flex gap-2">
+                        <label class="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded cursor-pointer">
+                            <i class="fas fa-camera"></i>
+                            사진촬영
+                            <input id="photo-camera" type="file" accept="image/*" capture="environment" class="hidden">
+                        </label>
+                        <label class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-4 py-2 rounded cursor-pointer">
+                            <i class="fas fa-image"></i>
+                            앨범에서 불러오기
+                            <input id="photo-gallery" type="file" accept="image/*" class="hidden">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 사진 그리드 -->
+                <div id="photos-grid" class="grid grid-cols-2 md:grid-cols-4 gap-4"></div>
+            </div>
+        </div>
         <!-- 현장 등록 페이지 -->
         <div id="site-registration-page" class="hidden">
             <div class="bg-white p-6 pb-24 rounded-lg shadow-md">
@@ -440,36 +493,44 @@
                             <input type="text" id="pm_phone" inputmode="tel" autocomplete="tel" class="w-full px-3 py-2 border border-gray-300 rounded-md">
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">영업담당 이름</label>
-                            <input type="text" id="sales_manager_name" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">영업담당자</label>
+                        <div id="sales-list" class="space-y-2">
+                          <div class="flex gap-2 items-center">
+                            <input type="text" id="sales_manager_name" class="flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="이름">
+                            <input type="text" id="sales_manager_phone" class="w-44 px-3 py-2 border border-gray-300 rounded-md" placeholder="전화">
+                            <button type="button" id="sales-add" class="px-3 py-2 border rounded text-blue-600">+</button>
+                          </div>
+                        </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">영업담당 전화번호</label>
-                            <input type="text" id="sales_manager_phone" inputmode="tel" autocomplete="tel" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">건설사 담당자</label>
+                        <div id="construction-list" class="space-y-2">
+                          <div class="flex gap-2 items-center">
+                            <input type="text" id="construction_manager_name" class="flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="이름">
+                            <input type="text" id="construction_manager_phone" class="w-44 px-3 py-2 border border-gray-300 rounded-md" placeholder="전화">
+                            <button type="button" id="construction-add" class="px-3 py-2 border rounded text-blue-600">+</button>
+                          </div>
+                        </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">건설담당 이름</label>
-                            <input type="text" id="construction_manager_name" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">설치점</label>
+                        <div id="installer-list" class="space-y-2">
+                          <div class="flex gap-2 items-center">
+                            <input type="text" id="installer_name" class="flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="업체/담당자">
+                            <input type="text" id="installer_phone" class="w-44 px-3 py-2 border border-gray-300 rounded-md" placeholder="전화">
+                            <button type="button" id="installer-add" class="px-3 py-2 border rounded text-blue-600">+</button>
+                          </div>
+                        </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">건설담당 전화번호</label>
-                            <input type="text" id="construction_manager_phone" inputmode="tel" autocomplete="tel" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">네트워크점</label>
+                        <div id="network-list" class="space-y-2">
+                          <div class="flex gap-2 items-center">
+                            <input type="text" id="network_manager_name" class="flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="업체/담당자">
+                            <input type="text" id="network_manager_phone" class="w-44 px-3 py-2 border border-gray-300 rounded-md" placeholder="전화">
+                            <button type="button" id="network-add" class="px-3 py-2 border rounded text-blue-600">+</button>
+                          </div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">설치점 이름</label>
-                            <input type="text" id="installer_name" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">설치점 전화번호</label>
-                            <input type="text" id="installer_phone" inputmode="tel" autocomplete="tel" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">네트워크점 이름</label>
-                            <input type="text" id="network_manager_name" class="w-full px-3 py-2 border border-gray-300 rounded-md">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-2">네트워크점 전화번호</label>
-                            <input type="text" id="network_manager_phone" inputmode="tel" autocomplete="tel" class="w-full px-3 py-2 border border-gray-300 rounded-md">
                         </div>
                         <div class="md:col-span-2 mt-2">
                             <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">
@@ -877,6 +938,7 @@
     <script src="js/site-products.js"></script>
     <script src="js/site-household.js"></script>
     <script src="js/site-common.js"></script>
+    <script src="js/site-photos.js"></script>
 
     <!-- FAB: 맨 위로 버튼 -->
     <button id="fab-back-to-top" aria-label="맨 위로" title="맨 위로"

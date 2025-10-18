@@ -80,17 +80,18 @@ const RememberEmailManager = {
 // API 요청 헬퍼
 async function apiRequest(endpoint, options = {}) {
     const token = TokenManager.get();
-    const headers = {
-        'Content-Type': 'application/json',
-        ...options.headers
-    };
+    let headers = { ...(options.headers||{}) };
+    const isForm = !!options.isFormData;
+    if(!isForm){
+        headers = { 'Content-Type': 'application/json', ...headers };
+    }
     
     if (token) {
         headers['Authorization'] = `Bearer ${token}`;
     }
     
     // body가 있을 때 JSON.stringify 적용
-    if (options.body && typeof options.body === 'object') {
+    if (!isForm && options.body && typeof options.body === 'object') {
         options.body = JSON.stringify(options.body);
     }
     
