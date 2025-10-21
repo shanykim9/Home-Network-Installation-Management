@@ -218,6 +218,13 @@ function updateUserInfo(user) {
     document.getElementById('user-name').textContent = user.name;
     document.getElementById('user-role').textContent = user.user_role === 'admin' ? '관리자' : '일반사용자';
     document.getElementById('user-info').classList.remove('hidden');
+    try{
+        const adminCard = document.getElementById('admin-card');
+        if(adminCard){
+            if(user.user_role === 'admin') adminCard.classList.remove('hidden');
+            else adminCard.classList.add('hidden');
+        }
+    }catch(_){ }
 }
 
 // 로그인/회원가입 모드 토글

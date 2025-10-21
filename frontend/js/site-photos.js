@@ -2,6 +2,77 @@
   let __photosInitDone = false;
   const gridId = 'photos-grid';
 
+  // 이미지 자동 압축/리사이즈: 8MB 이하 목표, JPEG로 인코딩
+  async function compressImageIfNeeded(file){
+    const MAX = 8 * 1024 * 1024;
+    try{
+      if(!(file && file.type && file.type.startsWith('image/'))) return file;
+      if(file.size <= MAX) return file;
+
+      // 이미지 로드
+      const url = URL.createObjectURL(file);
+      let bmp;
+      try{
+        if('createImageBitmap' in window){
+          // EXIF 방향 자동 반영 가능 브라우저는 옵션 사용
+          try{ bmp = await createImageBitmap(await fetch(url).then(r=>r.blob()), { imageOrientation: 'from-image' }); }
+          catch(_){ bmp = await createImageBitmap(await fetch(url).then(r=>r.blob())); }
+        }
+      }catch(_){ bmp = null; }
+      let imgW, imgH, draw;
+      if(bmp){
+        imgW = bmp.width; imgH = bmp.height; draw = (ctx, w, h)=>{ ctx.drawImage(bmp, 0, 0, w, h); };
+      }else{
+        const img = await new Promise((resolve, reject)=>{ const i=new Image(); i.onload=()=>resolve(i); i.onerror=reject; i.src=url; });
+        imgW = img.naturalWidth || img.width; imgH = img.naturalHeight || img.height; draw = (ctx, w, h)=>{ ctx.drawImage(img, 0, 0, w, h); };
+      }
+      URL.revokeObjectURL(url);
+
+      // 초기 스케일: 최대 변 3000px로 제한
+      const maxSide = 3000;
+      const baseScale = Math.min(1, maxSide / Math.max(imgW, imgH));
+
+      let scale = baseScale;
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { alpha: false });
+
+      async function tryEncode(q){
+        const w = Math.max(1, Math.round(imgW * scale));
+        const h = Math.max(1, Math.round(imgH * scale));
+        canvas.width = w; canvas.height = h;
+        ctx.clearRect(0,0,w,h);
+        draw(ctx, w, h);
+        const blob = await new Promise(res=> canvas.toBlob(res, 'image/jpeg', q));
+        return blob;
+      }
+
+      // 반복적으로 품질/크기를 줄여 목표 크기 도달
+      const qualities = [0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
+      for(let step=0; step<3; step++){
+        for(const q of qualities){
+          const blob = await tryEncode(q);
+          if(blob && blob.size <= MAX){
+            const name = (file.name || 'image').replace(/\.[^.]+$/, '') + '.jpg';
+            return new File([blob], name, { type: 'image/jpeg' });
+          }
+        }
+        // 품질을 낮춰도 안 되면 크기 자체를 더 줄임
+        scale *= 0.85;
+        if(scale < 0.2) break; // 과도한 축소 방지
+      }
+
+      // 마지막 결과 반환(최소 품질)
+      const lastBlob = await new Promise(res=> canvas.toBlob(res, 'image/jpeg', 0.3));
+      if(lastBlob && lastBlob.size < file.size){
+        const name = (file.name || 'image').replace(/\.[^.]+$/, '') + '.jpg';
+        return new File([lastBlob], name, { type: 'image/jpeg' });
+      }
+      return file; // 압축 실패 시 원본 유지
+    }catch(_){
+      return file; // 오류 시 원본 전송, 서버에서 한 번 더 제한
+    }
+  }
+
   function getSelectedPhotosSiteId(){
     const sel = document.getElementById('photos-site-select');
     return sel && sel.value ? parseInt(sel.value,10) : null;
@@ -119,13 +190,18 @@
     const siteId = getSelectedPhotosSiteId();
     if(!siteId){ Swal.fire('안내','먼저 현장을 선택하세요.','info'); return; }
     if(!inputEl || !inputEl.files || !inputEl.files[0]) return;
-    const file = inputEl.files[0];
+    let file = inputEl.files[0];
     const title = (document.getElementById('photo-title')?.value || '').trim();
-    // 클라이언트 사이즈 제한(8MB)
+    // 8MB 초과 시 자동 압축/리사이즈 시도
     const MAX = 8 * 1024 * 1024;
     if(file.size > MAX){
-      Swal.fire('안내','파일이 너무 큽니다. 최대 8MB까지 업로드할 수 있습니다.','warning');
-      return;
+      try{ Swal.showLoading(); }catch(_){ }
+      file = await compressImageIfNeeded(file);
+      try{ Swal.close(); }catch(_){ }
+      if(file.size > MAX){
+        Swal.fire('안내','파일을 8MB 이하로 줄일 수 없습니다. 더 작은 이미지를 선택해주세요.','warning');
+        return;
+      }
     }
 
     const form = new FormData();

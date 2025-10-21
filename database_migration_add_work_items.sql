@@ -30,7 +30,8 @@ CREATE TABLE IF NOT EXISTS site_photos (
     title TEXT,
     image_url TEXT NOT NULL,
     uploaded_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
-    created_by INTEGER
+    created_by INTEGER,
+    deleted_at TIMESTAMP WITH TIME ZONE NULL
 );
 CREATE INDEX IF NOT EXISTS idx_site_photos_site ON site_photos(site_id);
 COMMIT;

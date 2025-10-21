@@ -1,10 +1,17 @@
-from flask import Blueprint, request, jsonify, send_from_directory
+from flask import Blueprint, request, jsonify, send_from_directory, send_file
 from datetime import datetime, date
 import jwt
 import os
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from pathlib import Path
+from io import BytesIO
+import zipfile
+import json
+import requests
+import pandas as pd
+from typing import Literal
+from flask import current_app
 
 # 환경 변수 로드
 load_dotenv()
@@ -17,11 +24,17 @@ supabase_url = os.getenv('SUPABASE_URL')
 supabase_key = os.getenv('SUPABASE_ANON_KEY')
 supabase_service_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')  # Storage 전용 사용 권장
 
-print(f"🌐 Supabase URL: {supabase_url}")
-print(f"🔑 Supabase Key: {supabase_key[:20]}..." if supabase_key else "❌ Supabase Key 없음")
+try:
+    print(f"[INFO] Supabase URL: {supabase_url}")
+    print(f"[INFO] Supabase Key: {supabase_key[:20]}..." if supabase_key else "[WARN] Supabase Key 없음")
+except Exception:
+    pass
 
 if not supabase_url or not supabase_key:
-    print("⚠️  Supabase 환경 변수가 설정되지 않았습니다! 더미 데이터로 실행됩니다.")
+    try:
+        print("[WARN] Supabase 환경 변수가 설정되지 않았습니다! 더미 데이터로 실행됩니다.")
+    except Exception:
+        pass
     
     # 더미 Supabase 클라이언트 (개발용)
     class DummySupabase:
@@ -55,18 +68,30 @@ if not supabase_url or not supabase_key:
             self.data = []
     
     supabase = DummySupabase()
-    print("✅ 더미 Supabase 클라이언트 초기화 완료")
+    try:
+        print("[OK] 더미 Supabase 클라이언트 초기화 완료")
+    except Exception:
+        pass
 else:
     supabase: Client = create_client(supabase_url, supabase_key)
-    print("✅ Supabase 클라이언트 초기화 완료")
+    try:
+        print("[OK] Supabase 클라이언트 초기화 완료")
+    except Exception:
+        pass
     supabase_service: Client | None = None
     try:
         if supabase_service_key:
             supabase_service = create_client(supabase_url, supabase_service_key)
-            print("✅ Supabase 서비스 키 클라이언트 준비(스토리지 전용)")
+            try:
+                print("[OK] Supabase 서비스 키 클라이언트 준비(스토리지 전용)")
+            except Exception:
+                pass
     except Exception:
         supabase_service = None
-        print("⚠️ Supabase 서비스 키 클라이언트 초기화 실패: 환경 변수 또는 권한을 확인하세요")
+        try:
+            print("[WARN] Supabase 서비스 키 클라이언트 초기화 실패: 환경 변수 또는 권한을 확인하세요")
+        except Exception:
+            pass
 
 # JWT 토큰 검증 함수
 def verify_token(token):
@@ -79,6 +104,34 @@ def verify_token(token):
         return None
 
 sites_bp = Blueprint('sites', __name__)
+# =============================
+# 관리자: 사용자 역할 변경
+# =============================
+@sites_bp.route('/admin/users/<int:user_id>', methods=['PATCH'])
+def admin_update_user_role(user_id):
+    try:
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+        if payload.get('user_role') != 'admin':
+            return jsonify({'error': '관리자만 접근 가능합니다.'}), 403
+
+        body = request.get_json() or {}
+        new_role = (body.get('user_role') or '').strip()
+        if new_role not in ['admin', 'user']:
+            return jsonify({'error': 'user_role은 admin 또는 user만 가능합니다.'}), 400
+        # 자기 자신을 user로 강등 금지(옵션)
+        if user_id == payload.get('user_id') and new_role != 'admin':
+            return jsonify({'error': '자기 자신을 일반사용자로 강등할 수 없습니다.'}), 400
+
+        res = supabase.table('users').update({'user_role': new_role}).eq('id', user_id).execute()
+        return jsonify({'message': '역할이 변경되었습니다.', 'user': (res.data[0] if res.data else None)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # 사용자 목록 조회 API (연락처용)
 @sites_bp.route('/users', methods=['GET'])
@@ -92,20 +145,17 @@ def get_users():
         if not payload:
             return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
 
+        # 관리자 전용으로 제한
+        if payload.get('user_role') != 'admin':
+            return jsonify({'error': '관리자만 접근 가능합니다.'}), 403
+
         q = request.args.get('q')  # 검색어
 
         query = supabase.table('users').select('id, name, phone, user_role')
         rows = query.execute()
         items = rows.data or []
 
-        # 더미 데이터인 경우 샘플 사용자 반환
-        if not items and (not supabase_url or not supabase_key):
-            items = [
-                {'id': 1, 'name': '홍길동', 'phone': '010-1234-5678', 'user_role': 'user'},
-                {'id': 2, 'name': '김영업', 'phone': '010-9876-5432', 'user_role': 'admin'},
-                {'id': 3, 'name': '이현장', 'phone': '010-5555-1234', 'user_role': 'user'},
-                {'id': 4, 'name': '박관리', 'phone': '010-7777-8888', 'user_role': 'admin'}
-            ]
+        # 더미 모드에서도 관리자 전용 정책 유지
 
         # 간단한 서버측 필터링 (name 포함 검색)
         if q:
@@ -1031,7 +1081,13 @@ def list_site_photos(site_id):
 
         # count 포함하여 조회(가능한 경우)
         try:
-            rows = supabase.table('site_photos').select('*', count='exact').eq('site_id', site_id).order('id', desc=True).range(start, end).execute()
+            q = supabase.table('site_photos').select('*', count='exact').eq('site_id', site_id)
+            # 소프트 삭제 제외(컬럼이 존재할 때만)
+            try:
+                q = q.is_('deleted_at', None)
+            except Exception:
+                pass
+            rows = q.order('id', desc=True).range(start, end).execute()
             total = getattr(rows, 'count', None)
         except Exception as e_sel:
             # 테이블 미생성/스키마 캐시 오류 시 빈 목록
@@ -1041,7 +1097,12 @@ def list_site_photos(site_id):
             ):
                 return jsonify({'items': [], 'page': page, 'page_size': page_size, 'total': 0, 'has_more': False}), 200
             try:
-                rows = supabase.table('site_photos').select('*').eq('site_id', site_id).order('id', desc=True).range(start, end).execute()
+                q2 = supabase.table('site_photos').select('*').eq('site_id', site_id)
+                try:
+                    q2 = q2.is_('deleted_at', None)
+                except Exception:
+                    pass
+                rows = q2.order('id', desc=True).range(start, end).execute()
                 total = None
             except Exception as e_sel2:
                 return jsonify({'error': f'사진 목록 조회 실패: {str(e_sel2)}'}), 500
@@ -1194,6 +1255,17 @@ def delete_site_photo(site_id, photo_id):
 
         # 사진 삭제는 로그인한 사용자라면 모두 가능(팀 공유 정책 없음)
 
+        # 관리자=하드 삭제, 일반=소프트 삭제
+        hard_delete = (payload.get('user_role') == 'admin')
+        if not hard_delete:
+            # 소프트 삭제: deleted_at만 표시
+            try:
+                supabase.table('site_photos').update({'deleted_at': datetime.utcnow().isoformat()}).eq('id', photo_id).eq('site_id', site_id).execute()
+                return jsonify({'message': '사진이 삭제되었습니다.(소프트)'}), 200
+            except Exception:
+                # 컬럼이 없으면 하드 삭제로 폴백
+                pass
+
         # 파일 삭제 시도 (베스트에포트)
         try:
             public_path = photo.get('image_url') or ''
@@ -1226,7 +1298,203 @@ def delete_site_photo(site_id, photo_id):
             pass
 
         supabase.table('site_photos').delete().eq('id', photo_id).eq('site_id', site_id).execute()
-        return jsonify({'message': '사진이 삭제되었습니다.'}), 200
+        return jsonify({'message': '사진이 삭제되었습니다.(하드)'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# =============================
+# 데이터 내보내기(관리자: 전체, 일반: 본인 현장)
+# =============================
+@sites_bp.route('/export', methods=['GET'])
+def export_data():
+    try:
+        # 인증
+        auth_header = request.headers.get('Authorization')
+        if not auth_header:
+            return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
+        token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
+
+        user_id = payload.get('user_id')
+        user_role = payload.get('user_role')
+
+        # 파라미터
+        fmt = (request.args.get('format') or 'both').lower()  # csv|xlsx|both
+        scope = (request.args.get('scope') or 'auto').lower()  # auto|site
+        site_id_param = request.args.get('site_id')
+        include_photos = str(request.args.get('include_photos', 'true')).lower() in ['1','true','yes','y']
+        start_date = (request.args.get('start_date') or '').strip()  # YYYY-MM-DD
+        end_date = (request.args.get('end_date') or '').strip()      # YYYY-MM-DD
+
+        # 접근 범위: 관리자면 전체, 일반이면 본인이 만든 현장만
+        if user_role == 'admin':
+            base_q = supabase.table('sites').select('id')
+        else:
+            base_q = supabase.table('sites').select('id').eq('created_by', user_id)
+
+        if scope == 'site' and site_id_param:
+            try:
+                sid = int(site_id_param)
+                sites_rows = base_q.eq('id', sid).order('id', desc=True).execute()
+            except Exception:
+                sites_rows = base_q.order('id', desc=True).execute()
+        else:
+            sites_rows = base_q.order('id', desc=True).execute()
+        site_ids = [r['id'] for r in (sites_rows.data or [])]
+
+        # 선택된 현장이 없으면 빈 ZIP 반환
+        if not site_ids:
+            buf = BytesIO()
+            with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+                zf.writestr('README.txt', 'No data for export.')
+            buf.seek(0)
+            ts = datetime.utcnow().strftime('%Y%m%d_%H%M')
+            return send_file(buf, mimetype='application/zip', as_attachment=True, download_name=f'export_{ts}.zip')
+
+        def fetch_table(name, filter_by_site=True):
+            q = supabase.table(name).select('*')
+            if filter_by_site:
+                q = q.in_('site_id', site_ids)
+            rows = q.execute()
+            return rows.data or []
+
+        # 데이터 수집
+        data_sites = fetch_table('sites', filter_by_site=False)
+        # sites 범위를 사용자 범위로 축소(일반 사용자일 때)
+        if user_role != 'admin':
+            data_sites = [r for r in data_sites if r.get('id') in site_ids]
+        data_contacts = fetch_table('site_contacts')
+        # 복수 연락처 테이블은 없을 수 있으므로 예외 보호
+        try:
+            data_contact_people = fetch_table('site_contact_people')
+        except Exception:
+            data_contact_people = []
+        data_products = fetch_table('site_products')
+        data_work_items = fetch_table('work_items')
+        # 소프트 삭제 제외
+        try:
+            data_photos = supabase.table('site_photos').select('*').in_('site_id', site_ids).is_('deleted_at', None).execute().data or []
+        except Exception:
+            data_photos = fetch_table('site_photos')
+
+        # Excel 단일 시트용 병합 데이터프레임(table 구분 컬럼 포함)
+        def df_with_table(rows, table_name):
+            try:
+                df = pd.DataFrame(rows)
+            except Exception:
+                df = pd.DataFrame()
+            if 'table' not in df.columns:
+                df['table'] = table_name
+            else:
+                df['table'] = table_name
+            return df
+
+        df_all = pd.concat([
+            df_with_table(data_sites, 'sites'),
+            df_with_table(data_contacts, 'site_contacts'),
+            df_with_table(data_contact_people, 'site_contact_people'),
+            df_with_table(data_products, 'site_products'),
+            df_with_table(data_work_items, 'work_items'),
+            df_with_table(data_photos, 'site_photos'),
+        ], ignore_index=True, sort=False)
+
+        # ZIP 빌드
+        ts = datetime.utcnow().strftime('%Y%m%d_%H%M')
+        buf = BytesIO()
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # CSV들
+            def write_csv(path, rows):
+                try:
+                    import csv
+                    from io import StringIO
+                    sio = StringIO()
+                    if rows:
+                        cols = sorted({k for r in rows for k in r.keys()})
+                    else:
+                        cols = []
+                    writer = csv.DictWriter(sio, fieldnames=cols, extrasaction='ignore')
+                    writer.writeheader()
+                    for r in rows:
+                        writer.writerow({k: r.get(k) for k in cols})
+                    # UTF-8 BOM
+                    zf.writestr(path, '\ufeff' + sio.getvalue())
+                except Exception as e_csv:
+                    zf.writestr(path + '.error.txt', str(e_csv))
+
+            if fmt in ['csv','both']:
+                write_csv('data/sites.csv', data_sites)
+                write_csv('data/site_contacts.csv', data_contacts)
+                write_csv('data/site_contact_people.csv', data_contact_people)
+                write_csv('data/site_products.csv', data_products)
+                write_csv('data/work_items.csv', data_work_items)
+                write_csv('data/site_photos.csv', data_photos)
+
+            # Excel 한 시트
+            if fmt in ['xlsx','both']:
+                try:
+                    xls = BytesIO()
+                    with pd.ExcelWriter(xls, engine='openpyxl') as writer:
+                        # 하나의 시트에 모두(컬럼 유니온) + table 컬럼 포함
+                        df_all.to_excel(writer, sheet_name='export', index=False)
+                    xls.seek(0)
+                    zf.writestr('data/export.xlsx', xls.read())
+                except Exception as e_xlsx:
+                    # 실패 시 안내 파일만 기록
+                    zf.writestr('data/export.xlsx.error.txt', str(e_xlsx))
+
+            # 사진 ZIP 포함(원본 다운로드)
+            if include_photos and data_photos:
+                def in_date_range(uploaded_at_iso: str) -> bool:
+                    if not (start_date or end_date):
+                        return True
+                    try:
+                        dt = datetime.fromisoformat((uploaded_at_iso or '').replace('Z','+00:00'))
+                    except Exception:
+                        return True
+                    if start_date:
+                        try:
+                            s = datetime.fromisoformat(start_date + 'T00:00:00+00:00')
+                            if dt < s:
+                                return False
+                        except Exception:
+                            pass
+                    if end_date:
+                        try:
+                            e = datetime.fromisoformat(end_date + 'T23:59:59+00:00')
+                            if dt > e:
+                                return False
+                        except Exception:
+                            pass
+                    return True
+
+                for ph in data_photos:
+                    try:
+                        if not in_date_range(str(ph.get('uploaded_at') or '')):
+                            continue
+                        url = ph.get('image_url')
+                        if not url:
+                            continue
+                        r = requests.get(url, timeout=20)
+                        if r.status_code != 200:
+                            continue
+                        site_id = ph.get('site_id')
+                        fname = url.split('/')[-1]
+                        yymm = 'unknown'
+                        try:
+                            dt = datetime.fromisoformat((ph.get('uploaded_at') or '').replace('Z','+00:00'))
+                            yymm = f"{dt.year}/{str(dt.month).zfill(2)}"
+                        except Exception:
+                            pass
+                        arcname = f"photos/site_{site_id}/{yymm}/{fname}"
+                        zf.writestr(arcname, r.content)
+                    except Exception:
+                        continue
+
+        buf.seek(0)
+        return send_file(buf, mimetype='application/zip', as_attachment=True, download_name=f'export_{ts}.zip')
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 # =============================
