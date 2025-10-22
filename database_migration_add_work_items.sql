@@ -36,6 +36,45 @@ CREATE TABLE IF NOT EXISTS site_photos (
 CREATE INDEX IF NOT EXISTS idx_site_photos_site ON site_photos(site_id);
 COMMIT;
 
+-- (선택) 사용자 활성/삭제 컬럼 추가 및 승격 RPC 생성
+BEGIN;
+-- 일부 Postgres/Supabase 버전에서는 ALTER TABLE IF NOT EXISTS를 지원하지 않습니다.
+-- 테이블 지정은 단순히 ALTER TABLE로 두고, 컬럼 단위로 IF NOT EXISTS를 사용합니다.
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT true;
+ALTER TABLE public.users
+  ADD COLUMN IF NOT EXISTS deleted_at timestamptz NULL;
+
+CREATE OR REPLACE FUNCTION public.promote_to_admin(p_user_id bigint)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_admins_count int;
+BEGIN
+  PERFORM pg_advisory_xact_lock(123456789);
+
+  SELECT count(*) INTO v_admins_count
+  FROM public.users
+  WHERE user_role = 'admin'
+    AND (is_active IS DISTINCT FROM false)
+    AND deleted_at IS NULL;
+
+  IF v_admins_count >= 2 THEN
+    RAISE EXCEPTION '관리자는 최대 2명입니다.' USING ERRCODE = '23514';
+  END IF;
+
+  UPDATE public.users
+     SET user_role = 'admin',
+         updated_at = now()
+   WHERE id = p_user_id;
+
+  RETURN jsonb_build_object('ok', true, 'user_id', p_user_id);
+END;
+$$;
+COMMIT;
+
 -- 롤백 예시
 -- BEGIN;
 --   DROP TABLE IF EXISTS work_items;

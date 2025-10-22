@@ -173,12 +173,11 @@ async function handleRegister(event) {
     const email = document.getElementById('reg-email').value;
     const phone = document.getElementById('reg-phone').value;
     const password = document.getElementById('reg-password').value;
-    const user_role = document.getElementById('reg-user-role').value;
     
     try {
         await apiRequest('/auth/register', {
             method: 'POST',
-            body: { name, email, phone, password, user_role }
+            body: { name, email, phone, password }
         });
         
         Swal.fire({

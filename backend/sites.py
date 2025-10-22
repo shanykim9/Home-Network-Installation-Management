@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify, send_from_directory, send_file
 from datetime import datetime, date
 import jwt
 import os
-from dotenv import load_dotenv
+from dotenv import load_dotenv, dotenv_values
 from supabase import create_client, Client
 from pathlib import Path
 from io import BytesIO
@@ -16,8 +16,40 @@ from flask import current_app
 # 환경 변수 로드
 load_dotenv()
 
+# 환경변수 안전 로더(BOM/공백 대응)
+def _get_env_safe(key: str, default: str = "") -> str:
+    try:
+        val = os.getenv(key)
+        if isinstance(val, str) and val.strip() != "":
+            return val.strip()
+        # .env 직접 파싱하여 BOM 혹은 비정상 키명 보정
+        cfg = {}
+        try:
+            cfg = dotenv_values('.env') or {}
+        except Exception:
+            cfg = {}
+        # 1) 정확한 키
+        if key in cfg and str(cfg[key] or '').strip() != '':
+            return str(cfg[key]).strip()
+        # 2) BOM이 앞에 붙은 키(\ufeff)
+        bom_key = "\ufeff" + key
+        if bom_key in cfg and str(cfg[bom_key] or '').strip() != '':
+            return str(cfg[bom_key]).strip()
+        # 3) 선행 비문자 제거 후 일치하는 키(예외적 상황 방어)
+        for k, v in cfg.items():
+            ks = str(k or '').strip()
+            if ks.endswith(key) and str(v or '').strip() != '':
+                return str(v).strip()
+        return default
+    except Exception:
+        return default
+
 # auth.py와 동일한 기본 비밀키 정책 적용 (토큰 검증 시 일관성)
 SECRET_KEY = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
+EMERGENCY_ADMIN_CODE = _get_env_safe('EMERGENCY_ADMIN_CODE', '')
+
+# Blueprint는 모든 라우트 정의보다 먼저 선언되어야 합니다.
+sites_bp = Blueprint('sites', __name__)
 
 # Supabase 클라이언트 초기화
 supabase_url = os.getenv('SUPABASE_URL')
@@ -102,8 +134,49 @@ def verify_token(token):
         return None
     except jwt.InvalidTokenError:
         return None
+@sites_bp.route('/admin/emergency-promote', methods=['POST'])
+def emergency_promote():
+    """비상 승격: 관리자 0명일 때에만 .env 코드로 1명 승격(1회성 권장)
+    입력: { user_id, code }
+    보호: 서버 환경변수 코드 일치 + 현재 활성 관리자 수 0명 조건
+    """
+    try:
+        data = request.get_json() or {}
+        code = (data.get('code') or '').strip()
+        user_id = data.get('user_id')
+        if not code or not user_id:
+            return jsonify({'error': 'code와 user_id가 필요합니다.'}), 400
+        if not EMERGENCY_ADMIN_CODE:
+            return jsonify({'error': '비상승격 코드가 설정되어 있지 않습니다.'}), 403
+        if code != EMERGENCY_ADMIN_CODE:
+            return jsonify({'error': '비상승격 코드가 올바르지 않습니다.'}), 403
 
-sites_bp = Blueprint('sites', __name__)
+        try:
+            rows = supabase.table('users').select('id, is_active, deleted_at').eq('user_role','admin').execute()
+            admins = rows.data or []
+            active_admins = [u for u in admins if (u.get('is_active') is not False) and (u.get('deleted_at') is None)]
+            if len(active_admins) > 0:
+                return jsonify({'error': '관리자가 이미 존재합니다. 비상승격은 관리자 0명일 때만 가능합니다.'}), 409
+        except Exception:
+            # 컬럼이 없으면 단순 카운트
+            rows = supabase.table('users').select('id').eq('user_role','admin').execute()
+            if len(rows.data or []) > 0:
+                return jsonify({'error': '관리자가 이미 존재합니다.'}), 409
+
+        # RPC 우선 호출
+        try:
+            if 'supabase_service' in globals() and supabase_service:
+                rpc_res = supabase_service.rpc('promote_to_admin', {'p_user_id': user_id}).execute()
+                return jsonify({'message': '비상 승격 완료', 'result': getattr(rpc_res, 'data', None)}), 200
+        except Exception:
+            pass
+
+        # 폴백 업데이트
+        res = supabase.table('users').update({'user_role':'admin', 'updated_at': datetime.utcnow().isoformat()}).eq('id', user_id).execute()
+        return jsonify({'message': '비상 승격 완료(폴백)', 'user': (res.data[0] if res.data else None)}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 # =============================
 # 관리자: 사용자 역할 변경
 # =============================
@@ -128,6 +201,33 @@ def admin_update_user_role(user_id):
         if user_id == payload.get('user_id') and new_role != 'admin':
             return jsonify({'error': '자기 자신을 일반사용자로 강등할 수 없습니다.'}), 400
 
+        # 관리자 승격 제한: 현재 활성 관리자 수 < 2 일 때만 허용
+        if new_role == 'admin':
+            try:
+                # 우선 RPC 경로 시도(원자성 보장)
+                if 'supabase_service' in globals() and supabase_service:
+                    rpc_res = supabase_service.rpc('promote_to_admin', {'p_user_id': user_id}).execute()
+                    return jsonify({'message': '관리자로 승격되었습니다.', 'result': getattr(rpc_res, 'data', None)}), 200
+            except Exception as rpc_err:
+                # RPC 실패 시 서버 측 폴백(경합 가능성 있지만 UX 보장)
+                try:
+                    rows = supabase.table('users').select('id, is_active, deleted_at').eq('user_role','admin').execute()
+                    admins = rows.data or []
+                    def _is_active(u):
+                        return (u.get('is_active') is not False) and (u.get('deleted_at') is None)
+                    active_admins = [u for u in admins if _is_active(u)]
+                    if len(active_admins) >= 2:
+                        return jsonify({'error': '관리자는 최대 2명입니다.'}), 409
+                except Exception:
+                    # is_active/deleted_at 컬럼이 없는 경우: 단순 카운트로 제한
+                    rows = supabase.table('users').select('id').eq('user_role','admin').execute()
+                    if len(rows.data or []) >= 2:
+                        return jsonify({'error': '관리자는 최대 2명입니다.'}), 409
+
+                res = supabase.table('users').update({'user_role': 'admin'}).eq('id', user_id).execute()
+                return jsonify({'message': '관리자로 승격되었습니다.(폴백)', 'user': (res.data[0] if res.data else None)}), 200
+
+        # 일반 사용자 강등 또는 기타 변경
         res = supabase.table('users').update({'user_role': new_role}).eq('id', user_id).execute()
         return jsonify({'message': '역할이 변경되었습니다.', 'user': (res.data[0] if res.data else None)}), 200
     except Exception as e:
@@ -151,7 +251,7 @@ def get_users():
 
         q = request.args.get('q')  # 검색어
 
-        query = supabase.table('users').select('id, name, phone, user_role')
+        query = supabase.table('users').select('id, email, name, phone, user_role')
         rows = query.execute()
         items = rows.data or []
 

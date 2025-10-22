@@ -101,10 +101,10 @@ def verify_token(token):
             return {'user_id': 1, 'user_role': 'user'}
         return None
 
-# 이메일 형식 검증
+# 이메일 형식/도메인 검증 (@kdiwin.com 전용)
 def validate_email(email):
-    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
-    return re.match(pattern, email) is not None
+    pattern = r'^[a-zA-Z0-9._%+-]+@kdiwin\.com$'
+    return re.match(pattern, (email or '').strip().lower()) is not None
 
 # 회원가입
 @auth_bp.route('/register', methods=['POST'])
@@ -122,11 +122,12 @@ def register():
         password = data['password']
         name = data['name']
         phone = data['phone']
-        user_role = data.get('user_role', 'user')  # 기본값: 일반사용자
+        # 회원가입은 항상 일반 사용자로 고정
+        user_role = 'user'
         
-        # 이메일 형식 검증
+        # 이메일 형식/도메인 검증 (@kdiwin.com)
         if not validate_email(email):
-            return jsonify({'error': '올바른 이메일 형식이 아닙니다.'}), 400
+            return jsonify({'error': '회사 이메일(@kdiwin.com)로만 회원가입할 수 있습니다.'}), 400
         
         # 비밀번호 길이 검증
         if len(password) < 6:
