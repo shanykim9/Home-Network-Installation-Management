@@ -64,7 +64,7 @@ except Exception:
 
 if not supabase_url or not supabase_key:
     try:
-        print("[WARN] Supabase 환경 변수가 설정되지 않았습니다! 더미 데이터로 실행됩니다.")
+        print("[WARN] Supabase 환경 변수가 설정되지 않았습니다! 더미 데이터로 실행됩니다!.")
     except Exception:
         pass
     
@@ -373,6 +373,9 @@ def create_site():
             'certification_audit': data.get('certification_audit', 'N'),
             'home_iot': data.get('home_iot', 'N'),
             'product_bi': data.get('product_bi'),
+            'special_notes': (data.get('special_notes')[:1000] if data.get('special_notes') else None),
+            'external_network_enabled': (data.get('external_network_enabled') or 'N'),
+            'external_network_period': (data.get('external_network_period') if (data.get('external_network_enabled') == 'Y') else None),
             'created_by': payload['user_id'],
             'created_at': datetime.utcnow().isoformat()
         }
@@ -512,6 +515,9 @@ def update_site(site_id):
             'certification_audit': data.get('certification_audit'),
             'home_iot': data.get('home_iot'),
             'product_bi': data.get('product_bi'),
+            'special_notes': (data.get('special_notes')[:1000] if data.get('special_notes') else None),
+            'external_network_enabled': data.get('external_network_enabled'),
+            'external_network_period': (data.get('external_network_period') if (data.get('external_network_enabled') == 'Y') else None),
             'updated_at': datetime.utcnow().isoformat()
         }
         
@@ -617,6 +623,14 @@ def upsert_site_products(site_id):
             'doorphone_qty': data.get('doorphone_qty', 0),
             'lobbyphone_model': data.get('lobbyphone_model'),
             'lobbyphone_qty': data.get('lobbyphone_qty', 0),
+            'guardphone_model': data.get('guardphone_model'),
+            'guardphone_qty': data.get('guardphone_qty', 0),
+            'magnet_sensor_model': data.get('magnet_sensor_model'),
+            'magnet_sensor_qty': data.get('magnet_sensor_qty', 0),
+            'motion_sensor_model': data.get('motion_sensor_model'),
+            'motion_sensor_qty': data.get('motion_sensor_qty', 0),
+            'opener_model': data.get('opener_model'),
+            'opener_qty': data.get('opener_qty', 0),
             'updated_at': datetime.utcnow().isoformat()
         }
         
@@ -771,7 +785,7 @@ def upsert_site_contacts(site_id):
         print(f"❌ 연락처 저장 오류: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-# 세대부연동 조회 (조명SW/대기전력SW/가스감지기)
+# 세대부연동 조회 (조명SW/대기전력SW/가스감지기/VPN/일괄소등 등)
 @sites_bp.route('/sites/<int:site_id>/integrations/household', methods=['GET'])
 def get_household_integrations(site_id):
     try:
@@ -790,7 +804,7 @@ def get_household_integrations(site_id):
         if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
             return jsonify({'error': '접근 권한이 없습니다.'}), 403
 
-        types = ['lighting_sw','standby_power_sw','gas_detector','heating','ventilation','door_lock','air_conditioner','real_time_metering','environment_sensor']
+        types = ['lighting_sw','standby_power_sw','gas_detector','heating','ventilation','door_lock','air_conditioner','real_time_metering','environment_sensor','vpn','all_off_switch','bathroom_phone','kitchen_tv']
         rows = supabase.table('site_household_integrations').select('*').eq('site_id', site_id).in_('integration_type', types).execute()
         return jsonify({'items': rows.data or []}), 200
     except Exception as e:
@@ -831,7 +845,7 @@ def upsert_household_integrations(site_id):
             return 'Y' if str(v or 'N').strip().upper() == 'Y' else 'N'
 
         saved = []
-        allowed = ['lighting_sw','standby_power_sw','gas_detector','heating','ventilation','door_lock','air_conditioner','real_time_metering','environment_sensor']
+        allowed = ['lighting_sw','standby_power_sw','gas_detector','heating','ventilation','door_lock','air_conditioner','real_time_metering','environment_sensor','vpn','all_off_switch','bathroom_phone','kitchen_tv']
         for item in items:
             itype = (item.get('integration_type') or '').strip()
             if itype not in allowed:
@@ -1117,7 +1131,7 @@ def upsert_common_integrations(site_id):
         print(f"❌ 공용부연동 전체 오류: {str(e)}")
         return jsonify({'error': '공용부연동 저장 실패', 'error_detail': str(e)}), 500
 
-# 제품수량 조회 (평면 스키마: wallpad_*, doorphone_*, lobbyphone_*)
+# 제품수량 조회 (평면 스키마: wallpad_*, doorphone_*, lobbyphone_*, guardphone_*)
 @sites_bp.route('/sites/<int:site_id>/products', methods=['GET'])
 def get_site_products(site_id):
     try:
@@ -1535,15 +1549,46 @@ def export_data():
             # Excel 한 시트
             if fmt in ['xlsx','both']:
                 try:
+                    # xlsxwriter 우선, 실패 시 openpyxl 시도
+                    engine = None
+                    engine_errors = {}
+                    try:
+                        import xlsxwriter  # noqa: F401
+                        engine = 'xlsxwriter'
+                    except Exception as ex_xw:
+                        engine_errors['xlsxwriter'] = repr(ex_xw)
+                    if engine is None:
+                        try:
+                            import openpyxl  # noqa: F401
+                            engine = 'openpyxl'
+                        except Exception as ex_op:
+                            engine_errors['openpyxl'] = repr(ex_op)
+
+                    if engine is None:
+                        raise RuntimeError("No Excel engine available (xlsxwriter/openpyxl): " + str(engine_errors))
+
                     xls = BytesIO()
-                    with pd.ExcelWriter(xls, engine='openpyxl') as writer:
+                    with pd.ExcelWriter(xls, engine=engine) as writer:
                         # 하나의 시트에 모두(컬럼 유니온) + table 컬럼 포함
                         df_all.to_excel(writer, sheet_name='export', index=False)
                     xls.seek(0)
                     zf.writestr('data/export.xlsx', xls.read())
                 except Exception as e_xlsx:
                     # 실패 시 안내 파일만 기록
-                    zf.writestr('data/export.xlsx.error.txt', str(e_xlsx))
+                    try:
+                        import sys
+                        err_text = f"excel_error={e_xlsx}\npython={sys.version}\nexecutable={sys.executable}"
+                    except Exception:
+                        err_text = str(e_xlsx)
+                    zf.writestr('data/export.xlsx.error.txt', err_text)
+                    # openpyxl 미설치 등으로 XLSX 생성 실패 시 CSV 대체본 추가
+                    try:
+                        from io import StringIO
+                        sio = StringIO()
+                        df_all.to_csv(sio, index=False)
+                        zf.writestr('data/export_fallback.csv', '\ufeff' + sio.getvalue())
+                    except Exception:
+                        pass
 
             # 사진 ZIP 포함(원본 다운로드)
             if include_photos and data_photos:

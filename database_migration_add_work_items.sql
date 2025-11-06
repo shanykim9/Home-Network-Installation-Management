@@ -82,3 +82,22 @@ COMMIT;
 -- COMMIT;
 
 
+
+-- 추가 마이그레이션: 제품수량에 경비실기 컬럼 추가 (존재하면 건너뜀)
+ALTER TABLE site_products ADD COLUMN IF NOT EXISTS guardphone_model VARCHAR(100);
+ALTER TABLE site_products ADD COLUMN IF NOT EXISTS guardphone_qty INTEGER DEFAULT 0;
+
+-- 자석감지기/동체감지기/개폐기 컬럼 추가
+ALTER TABLE site_products ADD COLUMN IF NOT EXISTS magnet_sensor_model VARCHAR(100);
+ALTER TABLE site_products ADD COLUMN IF NOT EXISTS magnet_sensor_qty INTEGER DEFAULT 0;
+ALTER TABLE site_products ADD COLUMN IF NOT EXISTS motion_sensor_model VARCHAR(100);
+ALTER TABLE site_products ADD COLUMN IF NOT EXISTS motion_sensor_qty INTEGER DEFAULT 0;
+ALTER TABLE site_products ADD COLUMN IF NOT EXISTS opener_model VARCHAR(100);
+ALTER TABLE site_products ADD COLUMN IF NOT EXISTS opener_qty INTEGER DEFAULT 0;
+
+-- sites 테이블: 현장 특이사항(최대 1000자)
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS special_notes VARCHAR(1000);
+
+-- sites: 외부망 연동 플래그 및 가입기간
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS external_network_enabled CHAR(1) DEFAULT 'N';
+ALTER TABLE sites ADD COLUMN IF NOT EXISTS external_network_period VARCHAR(100);

@@ -3,6 +3,8 @@ function showAuthPage() {
     document.getElementById('auth-page').classList.remove('hidden');
     document.getElementById('main-dashboard').classList.add('hidden');
     document.getElementById('site-registration-page').classList.add('hidden');
+    const adminPage = document.getElementById('admin-page');
+    if (adminPage) adminPage.classList.add('hidden');
     document.getElementById('user-info').classList.add('hidden');
 }
 
@@ -10,6 +12,8 @@ function showMainDashboard() {
     document.getElementById('auth-page').classList.add('hidden');
     document.getElementById('main-dashboard').classList.remove('hidden');
     document.getElementById('site-registration-page').classList.add('hidden');
+    const adminPage = document.getElementById('admin-page');
+    if (adminPage) adminPage.classList.add('hidden');
 }
 
 function showPage(pageName) {
@@ -20,6 +24,8 @@ function showPage(pageName) {
     if (workPage) workPage.classList.add('hidden');
     const photosPage = document.getElementById('site-photos-page');
     if (photosPage) photosPage.classList.add('hidden');
+    const adminHide = document.getElementById('admin-page');
+    if (adminHide) adminHide.classList.add('hidden');
     
     // 요청된 페이지 보이기
     switch(pageName) {

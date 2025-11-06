@@ -1,5 +1,12 @@
 // 공용부연동 탭: 주차관제/원격검침/CCTV
 (function(){
+  function formatPhone(value){
+    const digits = String(value||'').replace(/\D/g,'');
+    if(digits.length <= 3) return digits;
+    if(digits.length <= 7) return digits.replace(/(\d{3})(\d+)/, '$1-$2');
+    if(digits.length <= 11) return digits.replace(/(\d{3})(\d{3,4})(\d{4})/, '$1-$2-$3');
+    return digits;
+  }
   function getSelectedSiteId(){
     const select = document.getElementById('site-select');
     return select && select.value ? parseInt(select.value,10) : null;
@@ -14,7 +21,7 @@
     if(e) e.value = enabled || 'Y';
     if(c) c.value = company || '';
     if(p) p.value = contactPerson || '';
-    if(ph) ph.value = contactPhone || '';
+    if(ph) ph.value = formatPhone(contactPhone || '');
     if(n) n.value = notes || '';
   }
 
@@ -78,16 +85,18 @@
       return;
     }
     const projectNo = document.getElementById('common-project-no').value;
+    const gv = (id)=>{ const el=document.getElementById(id); const v=el?el.value:null; return (v&&String(v).trim()!=='')? v : null; };
+    const gp = (id)=>{ const v=gv(id); return v? formatPhone(v) : null; };
     const items = [
-      {integration_type:'parking_control', enabled: document.getElementById('parking_enabled').value, company_name: document.getElementById('parking_company').value || null, contact_person: document.getElementById('parking_contact_person')?.value || null, contact_phone: document.getElementById('parking_contact_phone')?.value || null, notes: document.getElementById('parking_notes')?.value || null, project_no: projectNo},
-      {integration_type:'remote_metering', enabled: document.getElementById('metering_enabled').value, company_name: document.getElementById('metering_company').value || null, contact_person: document.getElementById('metering_contact_person')?.value || null, contact_phone: document.getElementById('metering_contact_phone')?.value || null, notes: document.getElementById('metering_notes')?.value || null, project_no: projectNo},
-      {integration_type:'cctv', enabled: document.getElementById('cctv_enabled').value, company_name: document.getElementById('cctv_company').value || null, contact_person: document.getElementById('cctv_contact_person')?.value || null, contact_phone: document.getElementById('cctv_contact_phone')?.value || null, notes: document.getElementById('cctv_notes')?.value || null, project_no: projectNo},
-      {integration_type:'elevator', enabled: document.getElementById('elevator_enabled').value, company_name: document.getElementById('elevator_company').value || null, contact_person: document.getElementById('elevator_contact_person')?.value || null, contact_phone: document.getElementById('elevator_contact_phone')?.value || null, notes: document.getElementById('elevator_notes')?.value || null, project_no: projectNo},
-      {integration_type:'parcel', enabled: document.getElementById('parcel_enabled').value, company_name: document.getElementById('parcel_company').value || null, contact_person: document.getElementById('parcel_contact_person')?.value || null, contact_phone: document.getElementById('parcel_contact_phone')?.value || null, notes: document.getElementById('parcel_notes')?.value || null, project_no: projectNo},
-      {integration_type:'ev_charger', enabled: document.getElementById('ev_enabled').value, company_name: document.getElementById('ev_company').value || null, contact_person: document.getElementById('ev_contact_person')?.value || null, contact_phone: document.getElementById('ev_contact_phone')?.value || null, notes: document.getElementById('ev_notes')?.value || null, project_no: projectNo},
-      {integration_type:'parking_location', enabled: document.getElementById('parkingloc_enabled').value, company_name: document.getElementById('parkingloc_company').value || null, contact_person: document.getElementById('parkingloc_contact_person')?.value || null, contact_phone: document.getElementById('parkingloc_contact_phone')?.value || null, notes: document.getElementById('parkingloc_notes')?.value || null, project_no: projectNo},
-      {integration_type:'onepass', enabled: document.getElementById('onepass_enabled').value, company_name: document.getElementById('onepass_company').value || null, contact_person: document.getElementById('onepass_contact_person')?.value || null, contact_phone: document.getElementById('onepass_contact_phone')?.value || null, notes: document.getElementById('onepass_notes')?.value || null, project_no: projectNo},
-      {integration_type:'rf_card', enabled: document.getElementById('rfcard_enabled').value, company_name: document.getElementById('rfcard_company').value || null, contact_person: document.getElementById('rfcard_contact_person')?.value || null, contact_phone: document.getElementById('rfcard_contact_phone')?.value || null, notes: document.getElementById('rfcard_notes')?.value || null, project_no: projectNo},
+      {integration_type:'parking_control', enabled: gv('parking_enabled')||'N', company_name: gv('parking_company'), contact_person: gv('parking_contact_person'), contact_phone: gp('parking_contact_phone'), notes: gv('parking_notes'), project_no: projectNo},
+      {integration_type:'remote_metering', enabled: gv('metering_enabled')||'N', company_name: gv('metering_company'), contact_person: gv('metering_contact_person'), contact_phone: gp('metering_contact_phone'), notes: gv('metering_notes'), project_no: projectNo},
+      {integration_type:'cctv', enabled: gv('cctv_enabled')||'N', company_name: gv('cctv_company'), contact_person: gv('cctv_contact_person'), contact_phone: gp('cctv_contact_phone'), notes: gv('cctv_notes'), project_no: projectNo},
+      {integration_type:'elevator', enabled: gv('elevator_enabled')||'N', company_name: gv('elevator_company'), contact_person: gv('elevator_contact_person'), contact_phone: gp('elevator_contact_phone'), notes: gv('elevator_notes'), project_no: projectNo},
+      {integration_type:'parcel', enabled: gv('parcel_enabled')||'N', company_name: gv('parcel_company'), contact_person: gv('parcel_contact_person'), contact_phone: gp('parcel_contact_phone'), notes: gv('parcel_notes'), project_no: projectNo},
+      {integration_type:'ev_charger', enabled: gv('ev_enabled')||'N', company_name: gv('ev_company'), contact_person: gv('ev_contact_person'), contact_phone: gp('ev_contact_phone'), notes: gv('ev_notes'), project_no: projectNo},
+      {integration_type:'parking_location', enabled: gv('parkingloc_enabled')||'N', company_name: gv('parkingloc_company'), contact_person: gv('parkingloc_contact_person'), contact_phone: gp('parkingloc_contact_phone'), notes: gv('parkingloc_notes'), project_no: projectNo},
+      {integration_type:'onepass', enabled: gv('onepass_enabled')||'N', company_name: gv('onepass_company'), contact_person: gv('onepass_contact_person'), contact_phone: gp('onepass_contact_phone'), notes: gv('onepass_notes'), project_no: projectNo},
+      {integration_type:'rf_card', enabled: gv('rfcard_enabled')||'N', company_name: gv('rfcard_company'), contact_person: gv('rfcard_contact_person'), contact_phone: gp('rfcard_contact_phone'), notes: gv('rfcard_notes'), project_no: projectNo},
     ];
     try{
       await apiRequest(`/sites/${siteId}/integrations/common`, { method: 'POST', body: { items } });
@@ -115,6 +124,13 @@
       if(parkingEl) parkingEl.value = 'Y';
       if(meteringEl) meteringEl.value = 'Y';
       if(cctvEl) cctvEl.value = 'Y';
+      
+      // 전화 포맷 핸들러 등록
+      const phones = form ? form.querySelectorAll('input[id$="_contact_phone"]') : [];
+      phones.forEach(el=>{
+        el.addEventListener('input', ()=>{ el.value = formatPhone(el.value); });
+        el.value = formatPhone(el.value);
+      });
       
       console.log('공용부연동 기본값 설정:', {
         parking: parkingEl?.value,

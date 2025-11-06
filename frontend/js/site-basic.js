@@ -117,6 +117,23 @@
       // 제품 BI
       const productBiEl = document.getElementById('product-bi');
       if(productBiEl) productBiEl.value = s.product_bi || '';
+      // 외부망 연동
+      const extEnEl = document.getElementById('external-network-enabled');
+      const extPrWrap = document.getElementById('external-period-wrap');
+      const extPrEl = document.getElementById('external-network-period');
+      if(extEnEl){ extEnEl.value = (s.external_network_enabled || 'N'); }
+      if(extPrEl){ extPrEl.value = s.external_network_period || ''; }
+      if(extPrWrap){
+        if((s.external_network_enabled || 'N') === 'Y') extPrWrap.classList.remove('hidden');
+        else extPrWrap.classList.add('hidden');
+      }
+      // 현장 특이사항
+      const specialNotesEl = document.getElementById('special-notes');
+      if(specialNotesEl){
+        specialNotesEl.value = s.special_notes || '';
+        const cnt = document.getElementById('special-notes-count');
+        if(cnt){ cnt.textContent = `${specialNotesEl.value.length}/1000`; }
+      }
       
       // 날짜 표시 업데이트
       updateDateDisplays();
@@ -151,8 +168,24 @@
       completion_date: document.getElementById('completion-date').value || null,
       certification_audit: document.getElementById('certification-audit').value || 'N',
       home_iot: document.getElementById('home-iot').value || 'N',
-      product_bi: (document.getElementById('product-bi') && document.getElementById('product-bi').value) || null
+      product_bi: (document.getElementById('product-bi') && document.getElementById('product-bi').value) || null,
+      special_notes: (document.getElementById('special-notes') && document.getElementById('special-notes').value) || null,
+      external_network_enabled: (document.getElementById('external-network-enabled') && document.getElementById('external-network-enabled').value) || 'N',
+      external_network_period: (document.getElementById('external-network-period') && document.getElementById('external-network-period').value) || null
     };
+
+    // 외부망 '아니오'면 가입기간 제거
+    if(body.external_network_enabled !== 'Y'){
+      body.external_network_period = null;
+    }
+
+    // 특이사항 길이 제한(서버/DB와 동일 1000자)
+    if(body.special_notes && body.special_notes.length > 1000){
+      Swal.fire('안내','현장 특이사항은 최대 1000자까지 입력할 수 있습니다.','info');
+      const el = document.getElementById('special-notes');
+      if(el){ el.focus(); }
+      return;
+    }
 
     // 프로젝트 No. 형식 검사
     const pattern = /^(NA|NE)\/\d{4}$/;
@@ -202,7 +235,7 @@
       form.addEventListener('submit', saveBasic); 
     }
     // 탭 이동 시 임시 저장을 위해 필드 변경 이벤트 등록
-    ['project-no','construction-company','site-name','address','detail-address','household-count','registration-date','delivery-date','completion-date','certification-audit','home-iot','product-bi']
+    ['project-no','construction-company','site-name','address','detail-address','household-count','registration-date','delivery-date','completion-date','certification-audit','home-iot','product-bi','special-notes','external-network-enabled','external-network-period']
       .forEach(id=>{
         const el = document.getElementById(id);
         if(el){
@@ -219,12 +252,33 @@
               completion_date: document.getElementById('completion-date').value,
               certification_audit: document.getElementById('certification-audit').value || 'N',
               home_iot: document.getElementById('home-iot').value || 'N',
-              product_bi: (document.getElementById('product-bi') && document.getElementById('product-bi').value) || null
+              product_bi: (document.getElementById('product-bi') && document.getElementById('product-bi').value) || null,
+              special_notes: (document.getElementById('special-notes') && document.getElementById('special-notes').value) || null,
+              external_network_enabled: (document.getElementById('external-network-enabled') && document.getElementById('external-network-enabled').value) || 'N',
+              external_network_period: (document.getElementById('external-network-period') && document.getElementById('external-network-period').value) || null
             };
             try{ if(window.saveToTempStorage){ window.saveToTempStorage('basic', temp); } }catch(_){ }
           });
         }
       });
+
+    // 특이사항 글자수 표시
+    const sn = document.getElementById('special-notes');
+    const sc = document.getElementById('special-notes-count');
+    if(sn && sc){
+      const updateCnt = ()=>{ sc.textContent = `${sn.value.length}/1000`; };
+      sn.addEventListener('input', updateCnt);
+      updateCnt();
+    }
+
+    // 외부망 연동 토글
+    const extEn = document.getElementById('external-network-enabled');
+    const extWrap = document.getElementById('external-period-wrap');
+    if(extEn && extWrap){
+      const toggle = ()=>{ if(extEn.value === 'Y') extWrap.classList.remove('hidden'); else extWrap.classList.add('hidden'); };
+      extEn.addEventListener('change', toggle);
+      toggle();
+    }
   });
   // 전역 노출: 현장 선택 시 순차 로드 체인에서 사용
   window.loadBasic = loadBasic;

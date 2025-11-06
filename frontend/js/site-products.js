@@ -23,6 +23,11 @@
       fillItem('wallpad', row?.wallpad_model || '', row?.wallpad_qty ?? 0);
       fillItem('doorphone', row?.doorphone_model || '', row?.doorphone_qty ?? 0);
       fillItem('lobbyphone', row?.lobbyphone_model || '', row?.lobbyphone_qty ?? 0);
+      fillItem('guardphone', row?.guardphone_model || '', row?.guardphone_qty ?? 0);
+      // 추가 항목
+      fillItem('magnet_sensor', row?.magnet_sensor_model || '', row?.magnet_sensor_qty ?? 0);
+      fillItem('motion_sensor', row?.motion_sensor_model || '', row?.motion_sensor_qty ?? 0);
+      fillItem('opener', row?.opener_model || '', row?.opener_qty ?? 0);
     }catch(err){
       console.error(err);
       Swal.fire('오류','제품수량을 불러오지 못했습니다.','error');
@@ -44,6 +49,14 @@
       doorphone_qty: document.getElementById('doorphone_qty').value,
       lobbyphone_model: document.getElementById('lobbyphone_model').value,
       lobbyphone_qty: document.getElementById('lobbyphone_qty').value,
+      guardphone_model: document.getElementById('guardphone_model')?.value,
+      guardphone_qty: document.getElementById('guardphone_qty')?.value,
+      magnet_sensor_model: document.getElementById('magnet_sensor_model')?.value,
+      magnet_sensor_qty: document.getElementById('magnet_sensor_qty')?.value,
+      motion_sensor_model: document.getElementById('motion_sensor_model')?.value,
+      motion_sensor_qty: document.getElementById('motion_sensor_qty')?.value,
+      opener_model: document.getElementById('opener_model')?.value,
+      opener_qty: document.getElementById('opener_qty')?.value,
     };
     const payload = {
       project_no: draft.project_no,
@@ -53,6 +66,14 @@
       doorphone_qty: parseInt(draft.doorphone_qty||'0',10),
       lobbyphone_model: draft.lobbyphone_model || null,
       lobbyphone_qty: parseInt(draft.lobbyphone_qty||'0',10),
+      guardphone_model: (draft.guardphone_model||'') ? draft.guardphone_model : null,
+      guardphone_qty: parseInt(draft.guardphone_qty||'0',10),
+      magnet_sensor_model: (draft.magnet_sensor_model||'') ? draft.magnet_sensor_model : null,
+      magnet_sensor_qty: parseInt(draft.magnet_sensor_qty||'0',10),
+      motion_sensor_model: (draft.motion_sensor_model||'') ? draft.motion_sensor_model : null,
+      motion_sensor_qty: parseInt(draft.motion_sensor_qty||'0',10),
+      opener_model: (draft.opener_model||'') ? draft.opener_model : null,
+      opener_qty: parseInt(draft.opener_qty||'0',10),
     };
     try{
       await apiRequest(`/sites/${siteId}/products`, { method: 'POST', body: payload });

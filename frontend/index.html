@@ -464,6 +464,29 @@
                         <input type="text" id="product-bi" 
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500" placeholder="예: BI 텍스트 입력">
                     </div>
+
+                    <!-- 외부망 연동 -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">외부망 연동</label>
+                        <select id="external-network-enabled" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                            <option value="N">아니오</option>
+                            <option value="Y">예</option>
+                        </select>
+                    </div>
+                    <div id="external-period-wrap" class="hidden">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">가입기간</label>
+                        <input type="text" id="external-network-period"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500" placeholder="예: 2025.01 ~ 2026.12">
+                    </div>
+
+                    <!-- 현장 특이사항 -->
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">현장 특이사항</label>
+                        <textarea id="special-notes" maxlength="1000" rows="4"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500"
+                            placeholder="최대 1000자까지 입력"></textarea>
+                        <div id="special-notes-count" class="text-xs text-gray-500 mt-1">0/1000</div>
+                    </div>
                     
                     <!-- 날짜 입력 필드들 -->
                     <div>
@@ -607,9 +630,24 @@
                                     <label class="block text-sm text-gray-700 mb-2">모델</label>
                                     <select id="wallpad_model" class="w-full px-3 py-2 border rounded-md">
                                         <option value="">선택</option>
-                                        <option>모델 A</option>
-                                        <option>모델 B</option>
-                                        <option>모델 C</option>
+                                        <option>NHN-1031R</option>
+                                        <option>NHN-1031C</option>
+                                        <option>NHN-1031(N)</option>
+                                        <option>NHN-1041</option>
+                                        <option>NHN-1041(N)</option>
+                                        <option>NHN-1051</option>
+                                        <option>NHN-1051(N)</option>
+                                        <option>NHN-1311</option>
+                                        <option>NHN-1311(N)</option>
+                                        <option>LE-1000</option>
+                                        <option>LE-2000</option>
+                                        <option>SNP-520</option>
+                                        <option>SNP-720</option>
+                                        <option>SNP-521</option>
+                                        <option>SNP-721</option>
+                                        <option>SNP-920</option>
+                                        <option>SNP-521-LH</option>
+                                        <option>NHN-07A1</option>
                                     </select>
                                 </div>
                                 <div>
@@ -626,9 +664,17 @@
                                     <label class="block text-sm text-gray-700 mb-2">모델</label>
                                     <select id="doorphone_model" class="w-full px-3 py-2 border rounded-md">
                                         <option value="">선택</option>
-                                        <option>모델 A</option>
-                                        <option>모델 B</option>
-                                        <option>모델 C</option>
+                                        <option>NHN-DP81</option>
+                                        <option>NHN-DP82</option>
+                                        <option>NHN-DP83</option>
+                                        <option>NHN-DP91</option>
+                                        <option>NHN-DP92</option>
+                                        <option>NHN-DP93</option>
+                                        <option>LE-DP1000</option>
+                                        <option>SEP910-4BW</option>
+                                        <option>SEP920-4BW</option>
+                                        <option>SEP520-4BW</option>
+                                        <option>SEP320-4BW</option>
                                     </select>
                                 </div>
                                 <div>
@@ -645,14 +691,84 @@
                                     <label class="block text-sm text-gray-700 mb-2">모델</label>
                                     <select id="lobbyphone_model" class="w-full px-3 py-2 border rounded-md">
                                         <option value="">선택</option>
-                                        <option>모델 A</option>
-                                        <option>모델 B</option>
-                                        <option>모델 C</option>
+                                        <option>NHN-LP41R</option>
+                                        <option>NHN-LP51T</option>
+                                        <option>NHN-LP51A</option>
+                                        <option>SLP710</option>
+                                        <option>SLP720</option>
                                     </select>
                                 </div>
                                 <div>
                                     <label class="block text-sm text-gray-700 mb-2">수량</label>
                                     <input type="number" id="lobbyphone_qty" class="w-full px-3 py-2 border rounded-md" min="0" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 경비실기 -->
+                        <div class="md:col-span-3">
+                            <h4 class="font-semibold mb-2">경비실기</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">모델</label>
+                                    <select id="guardphone_model" class="w-full px-3 py-2 border rounded-md">
+                                        <option value="">선택</option>
+                                        <option>SGP510-5TW</option>
+                                        <option>SGP511-4TW</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">수량</label>
+                                    <input type="number" id="guardphone_qty" class="w-full px-3 py-2 border rounded-md" min="0" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 자석감지기 -->
+                        <div class="md:col-span-3">
+                            <h4 class="font-semibold mb-2">자석감지기</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">모델</label>
+                                    <select id="magnet_sensor_model" class="w-full px-3 py-2 border rounded-md">
+                                        <option value="">선택</option>
+                                        <option>HD-MDT(HD)</option>
+                                        <option>MS-1205(KMT)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">수량</label>
+                                    <input type="number" id="magnet_sensor_qty" class="w-full px-3 py-2 border rounded-md" min="0" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 동체감지기 -->
+                        <div class="md:col-span-3">
+                            <h4 class="font-semibold mb-2">동체감지기</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">모델</label>
+                                    <select id="motion_sensor_model" class="w-full px-3 py-2 border rounded-md">
+                                        <option value="">선택</option>
+                                        <option>HD-P112(HD)</option>
+                                        <option>PA-0612(KMT)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">수량</label>
+                                    <input type="number" id="motion_sensor_qty" class="w-full px-3 py-2 border rounded-md" min="0" value="0">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- 개폐기 -->
+                        <div class="md:col-span-3">
+                            <h4 class="font-semibold mb-2">개폐기</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">모델(자유 입력)</label>
+                                    <input type="text" id="opener_model" class="w-full px-3 py-2 border rounded-md" placeholder="모델명 입력">
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-700 mb-2">수량</label>
+                                    <input type="number" id="opener_qty" class="w-full px-3 py-2 border rounded-md" min="0" value="0">
                                 </div>
                             </div>
                         </div>
@@ -790,6 +906,54 @@
                             <input type="text" id="env_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
                             <input type="text" id="env_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
                             <input type="text" id="env_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <!-- 욕실폰 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">욕실폰 연동</label>
+                            <select id="bathphone_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="bathphone_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="bathphone_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="bathphone_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="bathphone_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <!-- 주방 TV -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">주방 TV 연동</label>
+                            <select id="kitchentv_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="kitchentv_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="kitchentv_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="kitchentv_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="kitchentv_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <!-- VPN -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">VPN 연동</label>
+                            <select id="vpn_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="vpn_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="vpn_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="vpn_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="vpn_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
+                        </div>
+                        <!-- 일괄소등스위치 -->
+                        <div>
+                            <label class="block text-sm text-gray-700 mb-2">일괄소등스위치 연동</label>
+                            <select id="alloff_enabled" class="w-full px-3 py-2 border rounded-md">
+                                <option value="Y" selected>예</option>
+                                <option value="N">아니오</option>
+                            </select>
+                            <input type="text" id="alloff_company" placeholder="업체명" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="alloff_contact_person" placeholder="업체 담당자" class="mt-2 w-full px-3 py-2 border rounded-md">
+                            <input type="text" id="alloff_contact_phone" placeholder="연락처" class="mt-2 w-full px-3 py-2 border rounded-md" inputmode="tel" autocomplete="tel">
+                            <input type="text" id="alloff_notes" placeholder="기타" class="mt-2 w-full px-3 py-2 border rounded-md">
                         </div>
                         <div class="md:col-span-3 mt-2">
                             <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded">

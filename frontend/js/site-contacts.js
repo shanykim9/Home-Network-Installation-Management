@@ -17,6 +17,34 @@
   // 사용자 목록 캐시 (users 테이블)
   const usersCache = [];
 
+  // 고정 콤보 목록 (이미지 제공 목록)
+  const SALES_COMBO = [
+    { name: '김동명 수석매니저', phone: '010-8818-0085' },
+    { name: '이용진 수석매니저', phone: '010-8736-4605' },
+    { name: '이재현 수석매니저', phone: '010-4450-8313' },
+    { name: '김영관 수석매니저', phone: '010-3353-2882' },
+    { name: '김수민 매니저',   phone: '010-4211-0684' },
+    { name: '오동훈 매니저',   phone: '010-5217-3227' },
+  ];
+  const INSTALLER_COMBO = [
+    { name: '현대정보통신(최대훈)', phone: '010-5468-1473' },
+    { name: '케이원정보통신(조주현)', phone: '010-3155-0243' },
+    { name: '씨엔정보통신(김성훈)',   phone: '010-7233-7068' },
+    { name: '흔테크(하정훈)',       phone: '010-8942-9495' },
+    { name: '우진정보통신(정해근)',   phone: '010-4680-9174' },
+    { name: '미르통신(임진환)',     phone: '010-2295-4040' },
+    { name: '유일정보통신(배종학)',   phone: '010-9082-9592' },
+    { name: '수란(장용수)',         phone: '010-4617-8833' },
+    { name: '한별전기(곽주영)',     phone: '010-6273-2596' },
+    { name: '제이에이치(이상욱)',   phone: '010-9505-7575' },
+    { name: '와이에스테크(엄범형)',   phone: '010-9216-0160' },
+    { name: '버티스(김형국)',       phone: '010-4614-8757' },
+  ];
+  const NETWORK_COMBO = [
+    { name: '에스비정보기술(김수빈)', phone: '010-3861-2271' },
+    { name: '제이앤지시스템(임현섭)', phone: '010-5095-5512' },
+  ];
+
   async function loadUsers(q){
     const params = new URLSearchParams();
     if(q) params.set('q', q);
@@ -72,11 +100,11 @@
         }
       }catch(_){/* ignore */}
       document.getElementById('construction_manager_name').value = c.construction_manager_name || '';
-      document.getElementById('construction_manager_phone').value = c.construction_manager_phone || '';
+      document.getElementById('construction_manager_phone').value = formatPhone(c.construction_manager_phone || '');
       document.getElementById('installer_name').value = c.installer_name || '';
-      document.getElementById('installer_phone').value = c.installer_phone || '';
+      document.getElementById('installer_phone').value = formatPhone(c.installer_phone || '');
       document.getElementById('network_manager_name').value = c.network_manager_name || '';
-      document.getElementById('network_manager_phone').value = c.network_manager_phone || '';
+      document.getElementById('network_manager_phone').value = formatPhone(c.network_manager_phone || '');
 
       // 동적 리스트 반영
       buildDynamicList('sales-list', c.sales_list||[], 'sales');
@@ -121,7 +149,7 @@
     const rows = Array.from(wrap.querySelectorAll('[data-row="1"]'));
     return rows.map(r=>({
       name: String(r.querySelector('input[data-field="name"]')?.value||'').trim(),
-      phone: String(r.querySelector('input[data-field="phone"]')?.value||'').trim(),
+      phone: formatPhone(String(r.querySelector('input[data-field="phone"]')?.value||'').trim()),
     })).filter(it=>it.name || it.phone);
   }
 
@@ -136,18 +164,76 @@
       const row = document.createElement('div');
       row.className = 'flex gap-2 items-center';
       row.setAttribute('data-row','1');
-      row.innerHTML = `
-        <input type="text" data-field="name" class="flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="이름" value="${name}">
-        <input type="text" data-field="phone" class="w-44 px-3 py-2 border border-gray-300 rounded-md" placeholder="전화" value="${phone}">
-        <button type="button" class="px-3 py-2 border rounded text-red-600" data-remove="1">-</button>
-      `;
+      const useCombo = (kind==='sales' || kind==='installer' || kind==='network');
+      if(useCombo){
+        row.innerHTML = `
+          <select data-field="name-select" class="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white"></select>
+          <input type="text" data-field="name" class="hidden flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="이름" value="${name}">
+          <input type="text" data-field="phone" class="w-44 px-3 py-2 border border-gray-300 rounded-md" placeholder="전화" value="${formatPhone(phone)}">
+          <button type="button" class="px-3 py-2 border rounded text-red-600" data-remove="1">-</button>
+        `;
+      }else{
+        row.innerHTML = `
+          <input type="text" data-field="name" class="flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="이름" value="${name}">
+          <input type="text" data-field="phone" class="w-44 px-3 py-2 border border-gray-300 rounded-md" placeholder="전화" value="${formatPhone(phone)}">
+          <button type="button" class="px-3 py-2 border rounded text-red-600" data-remove="1">-</button>
+        `;
+      }
       wrap.appendChild(row);
+      const phoneEl = row.querySelector('input[data-field="phone"]');
+      if(phoneEl){ phoneEl.addEventListener('input', ()=>{ phoneEl.value = formatPhone(phoneEl.value); }); }
       const rm = row.querySelector('[data-remove="1"]');
       rm.addEventListener('click', ()=>{ row.remove(); });
+
+      if(useCombo){
+        const selectEl = row.querySelector('select[data-field="name-select"]');
+        const nameInput = row.querySelector('input[data-field="name"]');
+        const options = (kind==='sales')?SALES_COMBO:(kind==='installer')?INSTALLER_COMBO:NETWORK_COMBO;
+        // build options
+        selectEl.innerHTML = '';
+        const ph = document.createElement('option'); ph.value=''; ph.textContent='선택'; selectEl.appendChild(ph);
+        options.forEach(o=>{ const opt=document.createElement('option'); opt.value=o.name; opt.textContent=o.name; opt.setAttribute('data-phone',o.phone); selectEl.appendChild(opt); });
+        const direct = document.createElement('option'); direct.value='__DIRECT__'; direct.textContent='직접 입력'; selectEl.appendChild(direct);
+        function apply(){
+          const v = selectEl.value;
+          if(v==='__DIRECT__'){
+            nameInput.classList.remove('hidden');
+            if(!nameInput.value) nameInput.focus();
+            return;
+          }else{
+            nameInput.classList.add('hidden');
+          }
+          if(v){
+            nameInput.value = v;
+            const sel = selectEl.selectedOptions[0];
+            const p = sel? sel.getAttribute('data-phone'):'';
+            if(phoneEl) phoneEl.value = formatPhone(p||'');
+          }else{
+            nameInput.value = '';
+            if(phoneEl) phoneEl.value = '';
+          }
+        }
+        selectEl.addEventListener('change', apply);
+        // initialize based on provided name
+        const match = options.find(o=>String(o.name).trim()===String(name||'').trim());
+        if(match){ selectEl.value = match.name; }
+        apply();
+      }
     }
     (items||[]).forEach(it=> addRow(it.name||'', it.phone||''));
     if(addBtn){
       addBtn.onclick = ()=> addRow('', '');
+    }
+
+    // 삭제 버튼 위임 처리: 어떤 행에서든 '-' 클릭 시 해당 행 삭제
+    if(!wrap.dataset.removeDelegated){
+      wrap.addEventListener('click', (e)=>{
+        const btn = e.target.closest('[data-remove="1"]');
+        if(!btn) return;
+        const row = btn.closest('[data-row="1"]');
+        if(row && row.parentNode === wrap){ row.remove(); }
+      });
+      wrap.dataset.removeDelegated = '1';
     }
   }
 
@@ -190,11 +276,11 @@
     payload.sales_manager_name = draft.sales_manager_name || null;
     payload.sales_manager_phone = draft.sales_manager_phone ? formatPhone(draft.sales_manager_phone) : null;
     payload.construction_manager_name = draft.construction_manager_name || null;
-    payload.construction_manager_phone = draft.construction_manager_phone || null;
+    payload.construction_manager_phone = draft.construction_manager_phone ? formatPhone(draft.construction_manager_phone) : null;
     payload.installer_name = draft.installer_name || null;
-    payload.installer_phone = draft.installer_phone || null;
+    payload.installer_phone = draft.installer_phone ? formatPhone(draft.installer_phone) : null;
     payload.network_manager_name = draft.network_manager_name || null;
-    payload.network_manager_phone = draft.network_manager_phone || null;
+    payload.network_manager_phone = draft.network_manager_phone ? formatPhone(draft.network_manager_phone) : null;
     // 동적 리스트 수집 및 추가
     payload.sales_list = collectDynamicList('sales-list');
     payload.construction_list = collectDynamicList('construction-list');
@@ -234,6 +320,12 @@
 
     if(pmPhone){ pmPhone.addEventListener('input', ()=>{ pmPhone.value = formatPhone(pmPhone.value); }); }
     if(salesPhone){ salesPhone.addEventListener('input', ()=>{ salesPhone.value = formatPhone(salesPhone.value); }); }
+    const consPhone = document.getElementById('construction_manager_phone');
+    const instPhone = document.getElementById('installer_phone');
+    const netPhone = document.getElementById('network_manager_phone');
+    if(consPhone){ consPhone.addEventListener('input', ()=>{ consPhone.value = formatPhone(consPhone.value); }); }
+    if(instPhone){ instPhone.addEventListener('input', ()=>{ instPhone.value = formatPhone(instPhone.value); }); }
+    if(netPhone){ netPhone.addEventListener('input', ()=>{ netPhone.value = formatPhone(netPhone.value); }); }
 
     // 사용자 목록 기반 콤보박스 (users 테이블 사용)
     async function attachUsersToInput(inputEl, phoneEl){
@@ -318,7 +410,61 @@
     }
 
     attachUsersToInput(pmName, pmPhone);
-    attachUsersToInput(salesName, salesPhone);
+    // 고정 콤보: 영업/설치/네트워크(첫 행)
+    function attachFixedCombo(inputEl, phoneEl, options){
+      if(!inputEl) return;
+      const selectId = `${inputEl.id}-select`;
+      let sel = document.getElementById(selectId);
+      if(!sel){
+        sel = document.createElement('select');
+        sel.id = selectId;
+        sel.className = 'w-full px-3 py-2 border border-gray-300 rounded-md bg-white';
+        inputEl.parentNode.insertBefore(sel, inputEl);
+      }
+      function rebuild(){
+        sel.innerHTML = '';
+        const ph = document.createElement('option'); ph.value=''; ph.textContent='선택하세요'; sel.appendChild(ph);
+        options.forEach(o=>{ const opt=document.createElement('option'); opt.value=o.name; opt.textContent=o.name; opt.setAttribute('data-phone',o.phone); sel.appendChild(opt); });
+        const direct = document.createElement('option'); direct.value='__DIRECT__'; direct.textContent='직접 입력'; sel.appendChild(direct);
+      }
+      function apply(){
+        const v = sel.value;
+        if(v==='__DIRECT__'){
+          inputEl.classList.remove('hidden');
+          inputEl.value = '';
+          if(phoneEl) phoneEl.value='';
+          inputEl.focus();
+          return;
+        }
+        if(v){
+          inputEl.classList.add('hidden');
+          inputEl.value = v;
+          const o = sel.selectedOptions[0];
+          const p = o? o.getAttribute('data-phone'):'';
+          if(phoneEl) phoneEl.value = formatPhone(p||'');
+        }else{
+          inputEl.classList.add('hidden');
+          inputEl.value = '';
+          if(phoneEl) phoneEl.value = '';
+        }
+      }
+      rebuild();
+      // set initial selection if value present
+      const cur = String(inputEl.value||'').trim();
+      const m = options.find(o=>String(o.name).trim()===cur);
+      if(m){ sel.value = m.name; }
+      // default hide input, show select
+      inputEl.classList.add('hidden');
+      apply();
+      sel.addEventListener('change', apply);
+    }
+    attachFixedCombo(salesName, salesPhone, SALES_COMBO);
+    const instName = document.getElementById('installer_name');
+    const instPhoneEl = document.getElementById('installer_phone');
+    attachFixedCombo(instName, instPhoneEl, INSTALLER_COMBO);
+    const netName = document.getElementById('network_manager_name');
+    const netPhoneEl = document.getElementById('network_manager_phone');
+    attachFixedCombo(netName, netPhoneEl, NETWORK_COMBO);
 
     // 빈 상태에서도 + 버튼이 동작하도록 기본 빌드 실행
     try{
