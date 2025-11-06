@@ -162,21 +162,25 @@
     const addBtn = document.getElementById(addBtnId);
     function addRow(name='', phone=''){
       const row = document.createElement('div');
-      row.className = 'flex gap-2 items-center';
+        row.className = 'space-y-2';
       row.setAttribute('data-row','1');
       const useCombo = (kind==='sales' || kind==='installer' || kind==='network');
       if(useCombo){
         row.innerHTML = `
-          <select data-field="name-select" class="flex-1 px-3 py-2 border border-gray-300 rounded-md bg-white"></select>
-          <input type="text" data-field="name" class="hidden flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="이름" value="${name}">
-          <input type="text" data-field="phone" class="w-44 px-3 py-2 border border-gray-300 rounded-md" placeholder="전화" value="${formatPhone(phone)}">
-          <button type="button" class="px-3 py-2 border rounded text-red-600" data-remove="1">-</button>
+          <select data-field="name-select" class="w-full px-3 py-2 border border-gray-300 rounded-md bg-white"></select>
+          <input type="text" data-field="name" class="hidden w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="이름" value="${name}">
+          <div class="flex gap-2 items-center">
+            <input type="text" data-field="phone" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="전화" value="${formatPhone(phone)}">
+            <button type="button" class="px-3 py-2 border rounded text-red-600" data-remove="1">-</button>
+          </div>
         `;
       }else{
         row.innerHTML = `
-          <input type="text" data-field="name" class="flex-1 px-3 py-2 border border-gray-300 rounded-md" placeholder="이름" value="${name}">
-          <input type="text" data-field="phone" class="w-44 px-3 py-2 border border-gray-300 rounded-md" placeholder="전화" value="${formatPhone(phone)}">
-          <button type="button" class="px-3 py-2 border rounded text-red-600" data-remove="1">-</button>
+          <input type="text" data-field="name" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="이름" value="${name}">
+          <div class="flex gap-2 items-center">
+            <input type="text" data-field="phone" class="w-full px-3 py-2 border border-gray-300 rounded-md" placeholder="전화" value="${formatPhone(phone)}">
+            <button type="button" class="px-3 py-2 border rounded text-red-600" data-remove="1">-</button>
+          </div>
         `;
       }
       wrap.appendChild(row);
