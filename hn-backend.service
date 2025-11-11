@@ -1,0 +1,13 @@
+[Unit]
+Description=HN Flask Backend (Gunicorn)
+After=network.target
+
+[Service]
+User=azureadmin
+WorkingDirectory=/home/azureadmin/apps/hn_install/Home-Network-Installation-Management/backend
+Environment="PATH=/home/azureadmin/apps/hn_install/.venv/bin"
+ExecStart=/home/azureadmin/apps/hn_install/.venv/bin/gunicorn -w 3 -b 127.0.0.1:8000 app:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,4 @@
-// API 기본 URL - 상대 경로 사용
+// API 기본 URL - 상대 경로 사용 (AWS와 동일)
 const API_BASE_URL = '';
 
 // 토큰 관리
