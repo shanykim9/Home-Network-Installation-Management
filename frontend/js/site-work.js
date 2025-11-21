@@ -2,8 +2,8 @@
 (function(){
   // 내부 상태
   let activeTab = 'todo';
-  let rowsTodo = [];   // {id?, site_id, content, alarm_date, done(false), tempId}
-  let rowsDone = [];   // {id?, site_id, content, done_date}
+  let rowsTodo = [];   // {id?, site_id, content, alarm_date, done(false), delete_flag(false), tempId}
+  let rowsDone = [];   // {id?, site_id, content, done_date, delete_flag(false)}
   let rowsAlarms = []; // {id, site_name, content, alarm_date, alarm_confirmed}
   // 초기화 가드: 이벤트 중복 바인딩 방지
   let __workInitDone = false;
@@ -42,7 +42,12 @@
     tr.innerHTML = `
       <td class="py-2 pr-4"><input type="date" class="work-input-alarm w-44" value="${row.alarm_date||''}"></td>
       <td class="py-2 pr-4"><input type="text" class="work-input-content w-80 border rounded px-2 py-1" value="${row.content||''}" placeholder="할 일을 입력"></td>
-      <td class="py-2"><input type="checkbox" class="work-input-done" ${row.done?'checked':''}></td>
+      <td class="py-2 pr-2 text-center">
+        <input type="checkbox" class="work-input-done" ${row.done?'checked':''} title="완료 처리">
+      </td>
+      <td class="py-2 pl-2 text-center">
+        <input type="checkbox" class="work-input-delete" ${row.delete_flag?'checked':''} title="삭제">
+      </td>
     `;
     tr.dataset.id = row.id || '';
     tr.dataset.tempId = row.tempId || '';
@@ -61,10 +66,14 @@
           <div class="text-xs text-gray-500 mb-1">할 일</div>
           <textarea class="work-input-content w-full border rounded px-3 py-2 resize-none" rows="2" placeholder="할 일을 입력">${row.content||''}</textarea>
         </div>
-        <div>
-          <label class="flex items-center gap-2 text-sm">
+        <div class="flex items-center justify-between gap-4 text-sm">
+          <label class="flex items-center gap-2">
             <input type="checkbox" class="work-input-done" ${row.done?'checked':''}>
             완료
+          </label>
+          <label class="flex items-center gap-2 text-red-500">
+            <input type="checkbox" class="work-input-delete" ${row.delete_flag?'checked':''}>
+            삭제
           </label>
         </div>
       </div>
@@ -78,6 +87,9 @@
     tr.innerHTML = `
       <td class="py-2 pr-4"><input type="date" class="work-input-done-date w-44" value="${row.done_date||''}"></td>
       <td class="py-2 pr-4"><input type="text" class="work-input-done-content w-80 border rounded px-2 py-1" value="${row.content||''}" placeholder="한 일을 입력"></td>
+      <td class="py-2 pl-2 text-center">
+        <input type="checkbox" class="work-input-delete" ${row.delete_flag?'checked':''} title="삭제">
+      </td>
     `;
     tr.dataset.id = row.id || '';
     tr.dataset.tempId = row.tempId || '';
@@ -95,6 +107,12 @@
         <div>
           <div class="text-xs text-gray-500 mb-1">한 일</div>
           <textarea class="work-input-done-content w-full border rounded px-3 py-2 resize-none" rows="2" placeholder="한 일을 입력">${row.content||''}</textarea>
+        </div>
+        <div class="flex justify-end text-sm text-red-500">
+          <label class="flex items-center gap-2">
+            <input type="checkbox" class="work-input-delete" ${row.delete_flag?'checked':''}>
+            삭제
+          </label>
         </div>
       </div>
     `;
@@ -116,6 +134,14 @@
   function renderTodo(){
     const tbody = document.getElementById('work-todo-tbody');
     const cards = document.getElementById('work-todo-cards');
+    const isElementVisible = (el)=>{
+      if(!el) return false;
+      if(el.offsetParent !== null) return true;
+      const style = window.getComputedStyle(el);
+      if(style.display === 'none' || style.visibility === 'hidden') return false;
+      const opacity = parseFloat(style.opacity || '1');
+      return opacity > 0;
+    };
     if(tbody){
       tbody.innerHTML = '';
       rowsTodo.forEach(row=> tbody.appendChild(createTodoRow(row)) );
@@ -170,12 +196,16 @@
         apiRequest(`/sites/${siteId}/work-items?status=done`,{method:'GET'}),
         apiRequest(`/sites/${siteId}/alarms?scope=mine&today=${today}`,{method:'GET'})
       ]);
-      rowsTodo = (todoRes.items||[]).map(x=>({ id:x.id, site_id:x.site_id, content:x.content||'', alarm_date:x.alarm_date||'', done:false }));
-      rowsDone = (doneRes.items||[]).map(x=>({ id:x.id, site_id:x.site_id, content:x.content||'', done_date:(x.done_date||'').slice(0,10) }));
+      console.log('📥 To do 항목:', todoRes.items?.length || 0, '개');
+      console.log('📥 Done 항목:', doneRes.items?.length || 0, '개');
+      rowsTodo = (todoRes.items||[]).map(x=>({ id:x.id, site_id:x.site_id, content:x.content||'', alarm_date:x.alarm_date||'', done:false, delete_flag:false }));
+      rowsDone = (doneRes.items||[]).map(x=>({ id:x.id, site_id:x.site_id, content:x.content||'', done_date:(x.done_date||'').slice(0,10), delete_flag:false }));
       rowsAlarms = (alarmRes.items||[]);
       renderTodo(); renderDone(); renderAlarms();
       updateBellBadge(alarmRes.count||rowsAlarms.filter(a=>!a.alarm_confirmed).length);
-    }catch(err){ console.error(err); }
+    }catch(err){ 
+      console.error('❌ 데이터 로드 오류:', err); 
+    }
   }
 
   // 저장 로직
@@ -184,13 +214,34 @@
     if(!siteId){ Swal.fire('안내','현장을 먼저 선택하세요.','info'); return; }
     const tbody = document.getElementById('work-todo-tbody');
     const cards = document.getElementById('work-todo-cards');
+    const isElementVisible = (el)=>{
+      if(!el) return false;
+      if(el.offsetParent !== null) return true;
+      const style = window.getComputedStyle(el);
+      if(style.display === 'none' || style.visibility === 'hidden') return false;
+      const opacity = parseFloat(style.opacity || '1');
+      return opacity > 0;
+    };
     const nowLocal = new Date();
     const payload = [];
-    const consume = (idGetter, alarmGetter, contentGetter, doneGetter)=>{
+    const consume = (idGetter, alarmGetter, contentGetter, doneGetter, deleteGetter)=>{
       const id = idGetter();
-      const alarm_date = alarmGetter();
+      const alarm_date_raw = alarmGetter();
+      // 알람일 처리: 빈 문자열, null, undefined를 모두 null로 변환
+      // null을 명시적으로 전달해야 백엔드에서 업데이트가 정상적으로 이루어짐
+      let alarm_date = null;
+      if(alarm_date_raw != null && alarm_date_raw !== ''){
+        // null이 아니고 빈 문자열도 아닌 경우에만 처리
+        const trimmed = String(alarm_date_raw).trim();
+        alarm_date = trimmed || null;  // trim 후에도 빈 문자열이면 null
+      }
       const content = contentGetter();
       const done = doneGetter();
+      const shouldDelete = deleteGetter();
+      if(shouldDelete && id){
+        payload.push({ id, site_id: siteId, delete_flag: true });
+        return;
+      }
       if(!content) return;
       const item = { id, site_id: siteId, content, alarm_date };
       if(done){
@@ -205,32 +256,64 @@
       payload.push(item);
     };
     if(tbody){
-      tbody.querySelectorAll('tr').forEach(tr=>{
-        consume(
-          ()=> tr.dataset.id ? parseInt(tr.dataset.id,10) : null,
-          ()=> tr.querySelector('.work-input-alarm').value || null,
-          ()=> tr.querySelector('.work-input-content').value.trim(),
-          ()=> tr.querySelector('.work-input-done').checked
-        );
-      });
+      const tableEl = tbody.closest('table') || tbody;
+      if(isElementVisible(tableEl)){
+        tbody.querySelectorAll('tr').forEach(tr=>{
+          if(!isElementVisible(tr)) return;
+          consume(
+            ()=> tr.dataset.id ? parseInt(tr.dataset.id,10) : null,
+            ()=> {
+              const input = tr.querySelector('.work-input-alarm');
+              return input ? input.value : null;
+            },
+            ()=> tr.querySelector('.work-input-content').value.trim(),
+            ()=> tr.querySelector('.work-input-done').checked,
+            ()=> tr.querySelector('.work-input-delete').checked
+          );
+        });
+      }
     }
     if(cards){
-      cards.querySelectorAll('div[data-temp-id], div[data-id], .p-3.border.rounded-lg').forEach(div=>{
-        consume(
-          ()=> div.dataset.id ? parseInt(div.dataset.id,10) : null,
-          ()=> div.querySelector('.work-input-alarm').value || null,
-          ()=> div.querySelector('.work-input-content').value.trim(),
-          ()=> div.querySelector('.work-input-done').checked
-        );
-      });
+      if(isElementVisible(cards)){
+        cards.querySelectorAll('div[data-temp-id], div[data-id], .p-3.border.rounded-lg').forEach(div=>{
+          if(!isElementVisible(div)) return;
+          consume(
+            ()=> div.dataset.id ? parseInt(div.dataset.id,10) : null,
+            ()=> {
+              const input = div.querySelector('.work-input-alarm');
+              return input ? input.value : null;
+            },
+            ()=> {
+              const el = div.querySelector('.work-input-content');
+              return el ? el.value.trim() : '';
+            },
+            ()=> {
+              const el = div.querySelector('.work-input-done');
+              return el ? el.checked : false;
+            },
+            ()=> {
+              const el = div.querySelector('.work-input-delete');
+              return el ? el.checked : false;
+            }
+          );
+        });
+      }
     }
     try{
+      // 디버깅: 전송할 데이터 로그 출력
+      console.log('📤 저장할 데이터:', payload);
       const res = await apiRequest(`/sites/${siteId}/work-items`, { method:'POST', body:{ items: payload } });
+      console.log('✅ 저장 응답:', res);
       Swal.fire({icon:'success', title:'저장 완료', timer:1200, showConfirmButton:false});
+      // 저장 후 서버에서 최신 데이터를 다시 불러와서 UI 동기화
+      // 약간의 지연을 두어 서버 업데이트가 완료되도록 함
+      await new Promise(resolve => setTimeout(resolve, 100));
       await fetchLists();
     }catch(err){
-      console.error(err);
+      console.error('❌ 저장 오류:', err);
       Swal.fire('오류', err.message || '저장 실패', 'error');
+      // 에러 발생 시에도 서버 데이터로 복구
+      await fetchLists();
     }
   }
 
@@ -239,31 +322,65 @@
     if(!siteId){ Swal.fire('안내','현장을 먼저 선택하세요.','info'); return; }
     const tbody = document.getElementById('work-done-tbody');
     const cards = document.getElementById('work-done-cards');
+    const isElementVisible = (el)=>{
+      if(!el) return false;
+      if(el.offsetParent !== null) return true;
+      const style = window.getComputedStyle(el);
+      if(style.display === 'none' || style.visibility === 'hidden') return false;
+      const opacity = parseFloat(style.opacity || '1');
+      return opacity > 0;
+    };
     const payload = [];
-    const consume = (idGetter, dateGetter, contentGetter)=>{
+    const consume = (idGetter, dateGetter, contentGetter, deleteGetter)=>{
       const id = idGetter();
       const done_date = dateGetter();
       const content = contentGetter();
+      const shouldDelete = deleteGetter();
+      if(shouldDelete && id){
+        payload.push({ id, site_id: siteId, delete_flag: true });
+        return;
+      }
       if(!content || !done_date) return;
       payload.push({ id, site_id: siteId, content, done_date, status:'done' });
     };
     if(tbody){
-      tbody.querySelectorAll('tr').forEach(tr=>{
-        consume(
-          ()=> tr.dataset.id ? parseInt(tr.dataset.id,10) : null,
-          ()=> tr.querySelector('.work-input-done-date').value || null,
-          ()=> tr.querySelector('.work-input-done-content').value.trim()
-        );
-      });
+      const tableEl = tbody.closest('table') || tbody;
+      if(isElementVisible(tableEl)){
+        tbody.querySelectorAll('tr').forEach(tr=>{
+          if(!isElementVisible(tr)) return;
+          consume(
+            ()=> tr.dataset.id ? parseInt(tr.dataset.id,10) : null,
+            ()=> {
+              const el = tr.querySelector('.work-input-done-date');
+              return el ? el.value || null : null;
+            },
+            ()=> tr.querySelector('.work-input-done-content').value.trim(),
+            ()=> tr.querySelector('.work-input-delete').checked
+          );
+        });
+      }
     }
     if(cards){
-      cards.querySelectorAll('div[data-temp-id], div[data-id], .p-3.border.rounded-lg').forEach(div=>{
-        consume(
-          ()=> div.dataset.id ? parseInt(div.dataset.id,10) : null,
-          ()=> div.querySelector('.work-input-done-date').value || null,
-          ()=> div.querySelector('.work-input-done-content').value.trim()
-        );
-      });
+      if(isElementVisible(cards)){
+        cards.querySelectorAll('div[data-temp-id], div[data-id], .p-3.border.rounded-lg').forEach(div=>{
+          if(!isElementVisible(div)) return;
+          consume(
+            ()=> div.dataset.id ? parseInt(div.dataset.id,10) : null,
+            ()=> {
+              const el = div.querySelector('.work-input-done-date');
+              return el ? el.value || null : null;
+            },
+            ()=> {
+              const el = div.querySelector('.work-input-done-content');
+              return el ? el.value.trim() : '';
+            },
+            ()=> {
+              const el = div.querySelector('.work-input-delete');
+              return el ? el.checked : false;
+            }
+          );
+        });
+      }
     }
     try{
       const res = await apiRequest(`/sites/${siteId}/work-items`, { method:'POST', body:{ items: payload } });
@@ -294,13 +411,13 @@
   // + 버튼 동작: 활성 탭에 맞게 빈 행 추가
   function addRow(){
     if(activeTab === 'todo'){
-      const row = { content:'', alarm_date:'', done:false, tempId: 't'+Date.now() };
+      const row = { content:'', alarm_date:'', done:false, delete_flag:false, tempId: 't'+Date.now() };
       rowsTodo.push(row); renderTodo();
     }else if(activeTab === 'done'){
       const yyyy = new Date().getFullYear();
       const mm = String(new Date().getMonth()+1).padStart(2,'0');
       const dd = String(new Date().getDate()).padStart(2,'0');
-      const row = { content:'', done_date:`${yyyy}-${mm}-${dd}`, tempId: 'd'+Date.now() };
+      const row = { content:'', done_date:`${yyyy}-${mm}-${dd}`, delete_flag:false, tempId: 'd'+Date.now() };
       rowsDone.push(row); renderDone();
     }else if(activeTab === 'alarms'){
       // 알람 탭은 직접 추가 없음

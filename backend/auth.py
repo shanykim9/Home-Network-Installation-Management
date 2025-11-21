@@ -52,7 +52,40 @@ if not supabase_url or not supabase_key:
     
     supabase = DummySupabase()
 else:
-    supabase: Client = create_client(supabase_url, supabase_key)
+    # SSL 인증서 검증 설정 (app.py와 동일)
+    verify_ssl = os.getenv('SUPABASE_VERIFY_SSL', 'false').lower() in ('true', '1', 'yes')
+    
+    if not verify_ssl:
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        import ssl
+        ssl._create_default_https_context = ssl._create_unverified_context
+        os.environ['PYTHONHTTPSVERIFY'] = '0'
+        os.environ['CURL_CA_BUNDLE'] = ''
+        os.environ['REQUESTS_CA_BUNDLE'] = ''
+    
+    try:
+        # Supabase 클라이언트를 기본 방식으로 생성
+        supabase: Client = create_client(supabase_url, supabase_key)
+        
+        # SSL 검증이 비활성화된 경우, 내부 httpx 클라이언트의 verify 옵션만 변경
+        if not verify_ssl:
+            try:
+                if hasattr(supabase, 'postgrest') and hasattr(supabase.postgrest, 'session'):
+                    original_client = supabase.postgrest.session
+                    if hasattr(original_client, 'base_url'):
+                        from httpx import Client as HttpxClient
+                        new_client = HttpxClient(
+                            base_url=original_client.base_url,
+                            verify=False,
+                            timeout=original_client.timeout if hasattr(original_client, 'timeout') else 30.0,
+                            headers=original_client.headers if hasattr(original_client, 'headers') else {}
+                        )
+                        supabase.postgrest.session = new_client
+            except Exception:
+                pass
+    except Exception:
+        supabase: Client = create_client(supabase_url, supabase_key)
 
 auth_bp = Blueprint('auth', __name__)
 

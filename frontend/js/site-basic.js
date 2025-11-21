@@ -5,6 +5,148 @@
     return select && select.value ? parseInt(select.value,10) : null;
   }
 
+  const REGION_OPTIONS = Array.isArray(window.REGION_OPTIONS) ? window.REGION_OPTIONS : [];
+  let regionInitialized = false;
+
+  function findRegionBySido(sido){
+    return REGION_OPTIONS.find(r => r.sido === sido);
+  }
+
+  function setSigunguDisabled(disabled){
+    const sigunguEl = document.getElementById('address-sigungu');
+    if(!sigunguEl) return;
+    sigunguEl.disabled = disabled;
+    sigunguEl.classList.toggle('bg-gray-50', disabled);
+    sigunguEl.classList.toggle('text-gray-500', disabled);
+  }
+
+  function populateSigunguOptions(sido, preselect){
+    const sigunguEl = document.getElementById('address-sigungu');
+    if(!sigunguEl) return;
+    sigunguEl.innerHTML = '<option value="">시/군/구 선택</option>';
+    if(!sido){
+      setSigunguDisabled(true);
+      return;
+    }
+    const region = findRegionBySido(sido);
+    if(region){
+      region.sigungu.forEach(name=>{
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        sigunguEl.appendChild(opt);
+      });
+    }
+    setSigunguDisabled(false);
+    if(preselect && region && region.sigungu.includes(preselect)){
+      sigunguEl.value = preselect;
+    }else{
+      sigunguEl.value = '';
+    }
+  }
+
+  function updateAddressDisplay(){
+    const sido = document.getElementById('address-sido')?.value || '';
+    const sigungu = document.getElementById('address-sigungu')?.value || '';
+    const detail = document.getElementById('detail-address')?.value?.trim() || '';
+    const base = [sido, sigungu].filter(Boolean).join(' ');
+    const hidden = document.getElementById('address');
+    if(hidden) hidden.value = base;
+    const display = document.getElementById('address-display');
+    if(display){
+      display.value = [base, detail].filter(Boolean).join(' ');
+    }
+  }
+  window.updateAddressDisplay = updateAddressDisplay;
+
+  function deriveRegionFromAddress(fullAddress){
+    if(!fullAddress) return { sido: '', sigungu: '' };
+    const trimmed = fullAddress.trim();
+    const matched = REGION_OPTIONS.find(region => trimmed.startsWith(region.sido));
+    if(matched){
+      const rest = trimmed.slice(matched.sido.length).trim();
+      const district = matched.sigungu.find(name => rest.startsWith(name)) || '';
+      return { sido: matched.sido, sigungu: district };
+    }
+    const parts = trimmed.split(/\s+/);
+    return { sido: parts[0] || '', sigungu: parts[1] || '' };
+  }
+
+  function setRegionSelection(sido, sigungu){
+    const sidoEl = document.getElementById('address-sido');
+    if(!sidoEl) return;
+    const region = findRegionBySido(sido);
+    if(region){
+      sidoEl.value = region.sido;
+      populateSigunguOptions(region.sido, sigungu);
+    }else{
+      sidoEl.value = '';
+      populateSigunguOptions('', '');
+    }
+    updateAddressDisplay();
+  }
+  window.setRegionSelection = setRegionSelection;
+
+  function persistBasicTemp(){
+    try{
+      const temp = {
+        project_no: (document.getElementById('project-no-prefix')?.value || '') + (document.getElementById('project-no-number')?.value || ''),
+        construction_company: document.getElementById('construction-company')?.value || '',
+        site_name: document.getElementById('site-name')?.value || '',
+        address: document.getElementById('address')?.value || '',
+        address_sido: document.getElementById('address-sido')?.value || '',
+        address_sigungu: document.getElementById('address-sigungu')?.value || '',
+        detail_address: document.getElementById('detail-address')?.value || '',
+        household_count: document.getElementById('household-count')?.value || '',
+        registration_date: document.getElementById('registration-date')?.value || '',
+        delivery_date: document.getElementById('delivery-date')?.value || '',
+        completion_date: document.getElementById('completion-date')?.value || '',
+        certification_audit: document.getElementById('certification-audit')?.value || 'N',
+        home_iot: document.getElementById('home-iot')?.value || 'N',
+        product_bi: document.getElementById('product-bi')?.value || '',
+        special_notes: document.getElementById('special-notes')?.value || '',
+        external_network_enabled: document.getElementById('external-network-enabled')?.value || 'N',
+        external_network_period: document.getElementById('external-network-period')?.value || ''
+      };
+      if(window.saveToTempStorage){
+        window.saveToTempStorage('basic', temp);
+      }
+    }catch(_){}
+  }
+
+  function initRegionSelectors(){
+    if(regionInitialized) return;
+    const sidoEl = document.getElementById('address-sido');
+    const sigunguEl = document.getElementById('address-sigungu');
+    if(!sidoEl || !sigunguEl) return;
+    regionInitialized = true;
+    sidoEl.innerHTML = '<option value="">시/도 선택</option>';
+    REGION_OPTIONS.forEach(region=>{
+      const opt = document.createElement('option');
+      opt.value = region.sido;
+      opt.textContent = region.sido;
+      sidoEl.appendChild(opt);
+    });
+    populateSigunguOptions('', '');
+    sidoEl.addEventListener('change', ()=>{
+      populateSigunguOptions(sidoEl.value, '');
+      updateAddressDisplay();
+      persistBasicTemp();
+    });
+    sigunguEl.addEventListener('change', ()=>{
+      updateAddressDisplay();
+      persistBasicTemp();
+    });
+    const detailEl = document.getElementById('detail-address');
+    if(detailEl){
+      detailEl.addEventListener('input', ()=>{
+        updateAddressDisplay();
+        persistBasicTemp();
+      });
+    }
+    updateAddressDisplay();
+  }
+
   // 날짜를 한국어 형식으로 표시 (예: 24년 8월 12일)
   function formatDateToKorean(dateString) {
     if (!dateString) return '';
@@ -105,8 +247,25 @@
       }
       document.getElementById('construction-company').value = s.construction_company || '';
       document.getElementById('site-name').value = s.site_name || '';
-      document.getElementById('address').value = s.address || '';
-      document.getElementById('detail-address').value = s.detail_address || '';
+      const detailEl = document.getElementById('detail-address');
+      if(detailEl){
+        detailEl.value = s.detail_address || '';
+      }
+      const regionToApply = {
+        sido: s.address_sido,
+        sigungu: s.address_sigungu
+      };
+      if((!regionToApply.sido || !regionToApply.sigungu) && s.address){
+        const derived = deriveRegionFromAddress(s.address);
+        if(!regionToApply.sido) regionToApply.sido = derived.sido;
+        if(!regionToApply.sigungu) regionToApply.sigungu = derived.sigungu;
+      }
+      setRegionSelection(regionToApply.sido || '', regionToApply.sigungu || '');
+      const hiddenAddress = document.getElementById('address');
+      if(hiddenAddress){
+        hiddenAddress.value = s.address || [regionToApply.sido, regionToApply.sigungu].filter(Boolean).join(' ');
+      }
+      updateAddressDisplay();
       document.getElementById('household-count').value = s.household_count || '';
       document.getElementById('registration-date').value = s.registration_date || '';
       document.getElementById('delivery-date').value = s.delivery_date || '';
@@ -137,6 +296,8 @@
       
       // 날짜 표시 업데이트
       updateDateDisplays();
+      updateAddressDisplay();
+      persistBasicTemp();
       
       // 다른 탭들에도 등록번호와 프로젝트 No. 전달
       if (window.updateAllTabsWithSiteInfo) {
@@ -156,11 +317,27 @@
     const number = document.getElementById('project-no-number').value;
     const projectNo = prefix + number;
     
+    const addressSido = document.getElementById('address-sido').value;
+    const addressSigungu = document.getElementById('address-sigungu').value;
+    if(!addressSido){
+      Swal.fire('안내','시/도를 선택해주세요.','info');
+      document.getElementById('address-sido').focus();
+      return;
+    }
+    if(!addressSigungu){
+      Swal.fire('안내','시/군/구를 선택해주세요.','info');
+      document.getElementById('address-sigungu').focus();
+      return;
+    }
+    const baseAddress = [addressSido, addressSigungu].filter(Boolean).join(' ');
+
     const body = {
       project_no: projectNo,
       construction_company: document.getElementById('construction-company').value,
       site_name: document.getElementById('site-name').value,
-      address: document.getElementById('address').value,
+      address: baseAddress,
+      address_sido: addressSido,
+      address_sigungu: addressSigungu,
       detail_address: document.getElementById('detail-address').value,
       household_count: parseInt(document.getElementById('household-count').value||'0',10),
       registration_date: document.getElementById('registration-date').value || null,
@@ -227,6 +404,8 @@
   }
 
   document.addEventListener('DOMContentLoaded', ()=>{
+    initRegionSelectors();
+    updateAddressDisplay();
     const select = document.getElementById('site-select');
     if(select){ select.addEventListener('change', loadBasic); }
     const form = document.getElementById('site-form');
@@ -235,32 +414,18 @@
       form.addEventListener('submit', saveBasic); 
     }
     // 탭 이동 시 임시 저장을 위해 필드 변경 이벤트 등록
-    ['project-no','construction-company','site-name','address','detail-address','household-count','registration-date','delivery-date','completion-date','certification-audit','home-iot','product-bi','special-notes','external-network-enabled','external-network-period']
-      .forEach(id=>{
-        const el = document.getElementById(id);
-        if(el){
-          el.addEventListener('change', ()=>{
-            const temp = {
-              project_no: document.getElementById('project-no').value,
-              construction_company: document.getElementById('construction-company').value,
-              site_name: document.getElementById('site-name').value,
-              address: document.getElementById('address').value,
-              detail_address: document.getElementById('detail-address').value,
-              household_count: document.getElementById('household-count').value,
-              registration_date: document.getElementById('registration-date').value,
-              delivery_date: document.getElementById('delivery-date').value,
-              completion_date: document.getElementById('completion-date').value,
-              certification_audit: document.getElementById('certification-audit').value || 'N',
-              home_iot: document.getElementById('home-iot').value || 'N',
-              product_bi: (document.getElementById('product-bi') && document.getElementById('product-bi').value) || null,
-              special_notes: (document.getElementById('special-notes') && document.getElementById('special-notes').value) || null,
-              external_network_enabled: (document.getElementById('external-network-enabled') && document.getElementById('external-network-enabled').value) || 'N',
-              external_network_period: (document.getElementById('external-network-period') && document.getElementById('external-network-period').value) || null
-            };
-            try{ if(window.saveToTempStorage){ window.saveToTempStorage('basic', temp); } }catch(_){ }
-          });
-        }
-      });
+    const basicFieldIds = [
+      'project-no-prefix','project-no-number','construction-company','site-name',
+      'household-count','registration-date','delivery-date','completion-date',
+      'certification-audit','home-iot','product-bi','special-notes',
+      'external-network-enabled','external-network-period'
+    ];
+    basicFieldIds.forEach(id=>{
+      const el = document.getElementById(id);
+      if(!el) return;
+      const handler = (id === 'special-notes') ? 'input' : 'change';
+      el.addEventListener(handler, persistBasicTemp);
+    });
 
     // 특이사항 글자수 표시
     const sn = document.getElementById('special-notes');

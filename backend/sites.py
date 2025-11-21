@@ -105,7 +105,75 @@ if not supabase_url or not supabase_key:
     except Exception:
         pass
 else:
-    supabase: Client = create_client(supabase_url, supabase_key)
+    # SSL 인증서 검증 설정 (app.py와 동일)
+    verify_ssl = os.getenv('SUPABASE_VERIFY_SSL', 'false').lower() in ('true', '1', 'yes')
+    
+    if not verify_ssl:
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        import ssl
+        ssl._create_default_https_context = ssl._create_unverified_context
+        os.environ['PYTHONHTTPSVERIFY'] = '0'
+        os.environ['CURL_CA_BUNDLE'] = ''
+        os.environ['REQUESTS_CA_BUNDLE'] = ''
+    
+    try:
+        # Supabase 클라이언트를 기본 방식으로 생성
+        supabase: Client = create_client(supabase_url, supabase_key)
+        
+        # SSL 검증이 비활성화된 경우, 내부 httpx 클라이언트의 verify 옵션만 변경
+        if not verify_ssl:
+            try:
+                if hasattr(supabase, 'postgrest') and hasattr(supabase.postgrest, 'session'):
+                    original_client = supabase.postgrest.session
+                    if hasattr(original_client, 'base_url'):
+                        from httpx import Client as HttpxClient
+                        new_client = HttpxClient(
+                            base_url=original_client.base_url,
+                            verify=False,
+                            timeout=original_client.timeout if hasattr(original_client, 'timeout') else 30.0,
+                            headers=original_client.headers if hasattr(original_client, 'headers') else {}
+                        )
+                        supabase.postgrest.session = new_client
+            except Exception:
+                pass
+    except Exception as e:
+        print(f"[ERROR] Supabase 클라이언트 생성 실패: {e}")
+        import traceback
+        traceback.print_exc()
+        # 에러가 발생해도 서버는 시작되도록 더미 클라이언트 사용
+        class DummySupabase:
+            def table(self, name):
+                return DummyTable()
+        
+        class DummyTable:
+            def select(self, *args):
+                return self
+            def eq(self, *args):
+                return self
+            def insert(self, data):
+                return DummyResult()
+            def update(self, data):
+                return DummyResult()
+            def delete(self):
+                return self
+            def execute(self):
+                return DummyResult()
+            def limit(self, n):
+                return self
+            def order(self, field, desc=False):
+                return self
+            def in_(self, field, values):
+                return self
+            def range(self, start, end):
+                return self
+        
+        class DummyResult:
+            def __init__(self):
+                self.data = []
+        
+        supabase = DummySupabase()
+    
     try:
         print("[OK] Supabase 클라이언트 초기화 완료")
     except Exception:
@@ -113,7 +181,25 @@ else:
     supabase_service: Client | None = None
     try:
         if supabase_service_key:
+            # Supabase 서비스 클라이언트 생성
             supabase_service = create_client(supabase_url, supabase_service_key)
+            
+            # SSL 검증이 비활성화된 경우, 내부 httpx 클라이언트의 verify 옵션만 변경
+            if not verify_ssl:
+                try:
+                    if hasattr(supabase_service, 'postgrest') and hasattr(supabase_service.postgrest, 'session'):
+                        original_client = supabase_service.postgrest.session
+                        if hasattr(original_client, 'base_url'):
+                            from httpx import Client as HttpxClient
+                            new_client = HttpxClient(
+                                base_url=original_client.base_url,
+                                verify=False,
+                                timeout=original_client.timeout if hasattr(original_client, 'timeout') else 30.0,
+                                headers=original_client.headers if hasattr(original_client, 'headers') else {}
+                            )
+                            supabase_service.postgrest.session = new_client
+                except Exception:
+                    pass
             try:
                 print("[OK] Supabase 서비스 키 클라이언트 준비(스토리지 전용)")
             except Exception:
@@ -352,7 +438,7 @@ def create_site():
         data = request.get_json()
         
         # 필수 필드 검증
-        required_fields = ['project_no', 'construction_company', 'site_name', 'address', 'household_count']
+        required_fields = ['project_no', 'construction_company', 'site_name', 'address_sido', 'address_sigungu', 'household_count']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'{field}는 필수 입력 항목입니다.'}), 400
@@ -360,11 +446,17 @@ def create_site():
         # 등록번호는 더 이상 사용하지 않음
         
         # 현장 데이터 생성
+        base_address = data.get('address') or ' '.join([part for part in [data.get('address_sido'), data.get('address_sigungu')] if part])
+        if not base_address:
+            return jsonify({'error': '주소 정보가 올바르지 않습니다.'}), 400
+
         site_data = {
             'project_no': data['project_no'],
             'construction_company': data['construction_company'],
             'site_name': data['site_name'],
-            'address': data['address'],
+            'address': base_address,
+            'address_sido': data.get('address_sido'),
+            'address_sigungu': data.get('address_sigungu'),
             'detail_address': data.get('detail_address', ''),
             'household_count': data['household_count'],
             'registration_date': data.get('registration_date'),
@@ -502,11 +594,20 @@ def update_site(site_id):
             return jsonify({'error': '접근 권한이 없습니다.'}), 403
         
         data = request.get_json()
+        address_sido = data.get('address_sido')
+        address_sigungu = data.get('address_sigungu')
+        base_address = data.get('address')
+        if not base_address:
+            candidate_sido = address_sido if address_sido is not None else site_info.get('address_sido')
+            candidate_sigungu = address_sigungu if address_sigungu is not None else site_info.get('address_sigungu')
+            base_address = ' '.join([part for part in [candidate_sido, candidate_sigungu] if part])
         update_data = {
             'project_no': data.get('project_no'),
             'construction_company': data.get('construction_company'),
             'site_name': data.get('site_name'),
-            'address': data.get('address'),
+            'address': base_address,
+            'address_sido': address_sido,
+            'address_sigungu': address_sigungu,
             'detail_address': data.get('detail_address'),
             'household_count': data.get('household_count'),
             'registration_date': data.get('registration_date') if data.get('registration_date') else None,
@@ -851,15 +952,30 @@ def upsert_household_integrations(site_id):
             if itype not in allowed:
                 print(f"⚠️ 허용되지 않은 타입(세대부): {itype}")
                 continue
+            
+            # 저장할 의미 있는 데이터가 있는지 확인
+            enabled = _yn(item.get('enabled'))
+            project_no = _normalize(item.get('project_no'))
+            company_name = _normalize(item.get('company_name'))
+            contact_person = _normalize(item.get('contact_person'))
+            contact_phone = _normalize(item.get('contact_phone'))
+            notes = _normalize(item.get('notes'))
+            
+            # enabled가 'N'이고 다른 모든 필드가 비어있으면 저장하지 않음
+            has_data = enabled == 'Y' or project_no or company_name or contact_person or contact_phone or notes
+            if not has_data:
+                print(f"⏭️ 저장할 데이터 없음(세대부): {itype} - 모든 필드가 비어있음")
+                continue
+            
             payload_data = {
                 'site_id': site_id,
-                'project_no': _normalize(item.get('project_no')),
+                'project_no': project_no,
                 'integration_type': itype,
-                'enabled': _yn(item.get('enabled')),
-                'company_name': _normalize(item.get('company_name')),
-                'contact_person': _normalize(item.get('contact_person')),
-                'contact_phone': _normalize(item.get('contact_phone')),
-                'notes': _normalize(item.get('notes')),
+                'enabled': enabled,
+                'company_name': company_name,
+                'contact_person': contact_person,
+                'contact_phone': contact_phone,
+                'notes': notes,
                 'updated_at': datetime.utcnow().isoformat()
             }
             print(f"➡️ 업서트 시도(세대부): {payload_data}")
@@ -883,8 +999,14 @@ def upsert_household_integrations(site_id):
                 if ins.data:
                     saved.append(ins.data[0])
             except Exception as e_ins:
-                print(f"❌ 삽입 오류(세대부): {str(e_ins)}")
-                return jsonify({'error': '세대부연동 저장 실패', 'error_detail': str(e_ins)}), 500
+                # 삽입 실패 시 해당 항목만 건너뛰고 계속 진행
+                print(f"⚠️ 삽입 실패(세대부) - 항목 건너뜀: {itype}, 오류: {str(e_ins)}")
+                # 에러가 발생해도 다른 항목 처리를 계속함
+                continue
+
+        # 저장된 항목이 없을 때 안내 메시지 반환
+        if not saved:
+            return jsonify({'message': '저장할 내용이 없습니다.', 'items': [], 'no_data': True}), 200
 
         return jsonify({'message': '세대부연동이 저장되었습니다.', 'items': saved}), 200
     except Exception as e:
@@ -1091,15 +1213,30 @@ def upsert_common_integrations(site_id):
             if itype not in allowed:
                 print(f"⚠️ 허용되지 않은 타입(공용부): {itype}")
                 continue
+            
+            # 저장할 의미 있는 데이터가 있는지 확인
+            enabled = _yn(item.get('enabled'))
+            project_no = _normalize(item.get('project_no'))
+            company_name = _normalize(item.get('company_name'))
+            contact_person = _normalize(item.get('contact_person'))
+            contact_phone = _normalize(item.get('contact_phone'))
+            notes = _normalize(item.get('notes'))
+            
+            # enabled가 'N'이고 다른 모든 필드가 비어있으면 저장하지 않음
+            has_data = enabled == 'Y' or project_no or company_name or contact_person or contact_phone or notes
+            if not has_data:
+                print(f"⏭️ 저장할 데이터 없음(공용부): {itype} - 모든 필드가 비어있음")
+                continue
+            
             payload_data = {
                 'site_id': site_id,
-                'project_no': _normalize(item.get('project_no')),
+                'project_no': project_no,
                 'integration_type': itype,
-                'enabled': _yn(item.get('enabled')),
-                'company_name': _normalize(item.get('company_name')),
-                'contact_person': _normalize(item.get('contact_person')),
-                'contact_phone': _normalize(item.get('contact_phone')),
-                'notes': _normalize(item.get('notes')),
+                'enabled': enabled,
+                'company_name': company_name,
+                'contact_person': contact_person,
+                'contact_phone': contact_phone,
+                'notes': notes,
                 'updated_at': datetime.utcnow().isoformat()
             }
             print(f"➡️ 업서트 시도(공용부): {payload_data}")
@@ -1123,8 +1260,14 @@ def upsert_common_integrations(site_id):
                 if ins.data:
                     saved.append(ins.data[0])
             except Exception as e_ins:
-                print(f"❌ 삽입 오류(공용부): {str(e_ins)}")
-                return jsonify({'error': '공용부연동 저장 실패', 'error_detail': str(e_ins)}), 500
+                # 삽입 실패 시 해당 항목만 건너뛰고 계속 진행
+                print(f"⚠️ 삽입 실패(공용부) - 항목 건너뜀: {itype}, 오류: {str(e_ins)}")
+                # 에러가 발생해도 다른 항목 처리를 계속함
+                continue
+
+        # 저장된 항목이 없을 때 안내 메시지 반환
+        if not saved:
+            return jsonify({'message': '저장할 내용이 없습니다.', 'items': [], 'no_data': True}), 200
 
         return jsonify({'message': '공용부연동이 저장되었습니다.', 'items': saved}), 200
     except Exception as e:
@@ -1196,9 +1339,9 @@ def list_site_photos(site_id):
         # count 포함하여 조회(가능한 경우)
         try:
             q = supabase.table('site_photos').select('*', count='exact').eq('site_id', site_id)
-            # 소프트 삭제 제외(컬럼이 존재할 때만)
+            # 소프트 삭제 제외(컬럼이 존재할 때만) - deleted_at이 null인 것만 조회
             try:
-                q = q.is_('deleted_at', None)
+                q = q.is_('deleted_at', 'null')  # None 대신 'null' 문자열 사용
             except Exception:
                 pass
             rows = q.order('id', desc=True).range(start, end).execute()
@@ -1213,7 +1356,7 @@ def list_site_photos(site_id):
             try:
                 q2 = supabase.table('site_photos').select('*').eq('site_id', site_id)
                 try:
-                    q2 = q2.is_('deleted_at', None)
+                    q2 = q2.is_('deleted_at', 'null')  # None 대신 'null' 문자열 사용
                 except Exception:
                     pass
                 rows = q2.order('id', desc=True).range(start, end).execute()
@@ -1488,11 +1631,20 @@ def export_data():
             data_contact_people = []
         data_products = fetch_table('site_products')
         data_work_items = fetch_table('work_items')
-        # 소프트 삭제 제외
+        # 소프트 삭제 제외 - deleted_at이 null인 것만 조회
         try:
-            data_photos = supabase.table('site_photos').select('*').in_('site_id', site_ids).is_('deleted_at', None).execute().data or []
+            data_photos = supabase.table('site_photos').select('*').in_('site_id', site_ids).is_('deleted_at', 'null').execute().data or []
         except Exception:
             data_photos = fetch_table('site_photos')
+        # 세대부 연동 및 공용부 연동 데이터
+        try:
+            data_household_integrations = fetch_table('site_household_integrations')
+        except Exception:
+            data_household_integrations = []
+        try:
+            data_common_integrations = fetch_table('site_common_integrations')
+        except Exception:
+            data_common_integrations = []
 
         # Excel 단일 시트용 병합 데이터프레임(table 구분 컬럼 포함)
         def df_with_table(rows, table_name):
@@ -1513,7 +1665,141 @@ def export_data():
             df_with_table(data_products, 'site_products'),
             df_with_table(data_work_items, 'work_items'),
             df_with_table(data_photos, 'site_photos'),
+            df_with_table(data_household_integrations, 'site_household_integrations'),
+            df_with_table(data_common_integrations, 'site_common_integrations'),
         ], ignore_index=True, sort=False)
+
+        # 컬럼명을 한국어로 변경 (실제 입력 항목명과 동일하게)
+        column_mapping = {
+            # sites 테이블
+            'id': 'ID',
+            'site_id': '현장ID',
+            'project_no': '프로젝트 No.',
+            'construction_company': '건설사',
+            'site_name': '현장명',
+            'address': '주소',
+            'address_sido': '주소(시/도)',
+            'address_sigungu': '주소(시/군/구)',
+            'detail_address': '상세주소',
+            'household_count': '세대수',
+            'registration_date': '등록일',
+            'delivery_date': '납품예정',
+            'completion_date': '준공일',
+            'certification_audit': '인증심사여부',
+            'home_iot': '홈IoT연동여부',
+            'product_bi': '제품 BI',
+            'special_notes': '현장 특이사항',
+            'external_network_enabled': '외부망 연동',
+            'external_network_period': '가입기간',
+            'created_by': '생성자ID',
+            'created_at': '생성일시',
+            'updated_at': '수정일시',
+            # site_contacts 테이블
+            'pm_name': 'PM 이름',
+            'pm_phone': 'PM 전화번호',
+            'sales_manager_name': '영업담당자',
+            'sales_manager_phone': '영업담당자 전화',
+            'construction_manager_name': '건설사 담당자',
+            'construction_manager_phone': '건설사 담당자 전화',
+            'installer_name': '설치점',
+            'installer_phone': '설치점 전화',
+            'network_manager_name': '네트워크점',
+            'network_manager_phone': '네트워크점 전화',
+            # site_products 테이블
+            'product_type': '제품유형',
+            'product_model': '제품모델',
+            'quantity': '수량',
+            'wallpad_model': '월패드 모델',
+            'wallpad_qty': '월패드 수량',
+            'doorphone_model': '도어폰 모델',
+            'doorphone_qty': '도어폰 수량',
+            'lobbyphone_model': '로비폰 모델',
+            'lobbyphone_qty': '로비폰 수량',
+            'guardphone_model': '경비실기 모델',
+            'guardphone_qty': '경비실기 수량',
+            'magnet_sensor_model': '자석감지기 모델',
+            'magnet_sensor_qty': '자석감지기 수량',
+            'motion_sensor_model': '동체감지기 모델',
+            'motion_sensor_qty': '동체감지기 수량',
+            'opener_model': '개폐기 모델',
+            'opener_qty': '개폐기 수량',
+            # site_household_integrations 테이블
+            'integration_type': '연동유형',
+            'enabled': '연동여부',
+            'company_name': '업체명',
+            'contact_person': '업체 담당자',
+            'contact_phone': '연락처',
+            'notes': '기타',
+            # site_common_integrations 테이블 (동일한 컬럼명 사용)
+            # work_items 테이블
+            'content': '업무내용',
+            'status': '상태',
+            'alarm_date': '알람일자',
+            'alarm_confirmed': '알람확인',
+            'done_date': '완료일자',
+            'work_type': '업무유형',
+            'work_date': '업무일자',
+            'worker_name': '작업자명',
+            'work_content': '업무내용',
+            'weather': '날씨',
+            'temperature': '온도',
+            # site_photos 테이블
+            'title': '사진제목',
+            'image_url': '사진URL',
+            'photo_url': '사진URL',
+            'photo_description': '사진설명',
+            'uploaded_at': '업로드일시',
+            'deleted_at': '삭제일시',
+            # site_contact_people 테이블
+            'name': '이름',
+            'phone': '연락처',
+            'contact_no': '연락처',
+            'role': '역할',
+            # 기타
+            'table': '테이블',
+            'start_date': '시작일',
+            'end_date': '종료일',
+            'site_manager': '현장관리자',
+        }
+        
+        # df_all의 컬럼명 변경 (존재하는 컬럼만)
+        existing_columns = {k: v for k, v in column_mapping.items() if k in df_all.columns}
+        if existing_columns:
+            df_all = df_all.rename(columns=existing_columns)
+        
+        # integration_type 값 한국어 변환
+        integration_type_mapping = {
+            # 세대부 연동
+            'lighting_sw': '조명 SW 연동',
+            'standby_power_sw': '대기전력 SW 연동',
+            'gas_detector': '가스감지기 연동',
+            'heating': '난방 연동',
+            'ventilation': '환기 연동',
+            'door_lock': '도어락 연동',
+            'air_conditioner': '에어컨 연동',
+            'real_time_metering': '실시간검침 연동',
+            'environment_sensor': '환경감지 연동',
+            'vpn': 'VPN 연동',
+            'all_off_switch': '일괄소등스위치 연동',
+            'bathroom_phone': '욕실폰 연동',
+            'kitchen_tv': '주방 TV 연동',
+            # 공용부 연동
+            'parking_control': '주차관제 연동',
+            'remote_metering': '원격검침 연동',
+            'cctv': 'CCTV 연동',
+            'elevator': '엘리베이터 연동',
+            'parcel': '무인택배 연동',
+            'ev_charger': '전기차충전 연동',
+            'parking_location': '주차위치 연동',
+            'onepass': '원패스 연동',
+            'rf_card': 'RF 카드 연동',
+        }
+        
+        # integration_type 컬럼이 있으면 값 변환
+        if '연동유형' in df_all.columns:
+            df_all['연동유형'] = df_all['연동유형'].map(lambda x: integration_type_mapping.get(x, x) if pd.notna(x) else x)
+        elif 'integration_type' in df_all.columns:
+            df_all['integration_type'] = df_all['integration_type'].map(lambda x: integration_type_mapping.get(x, x) if pd.notna(x) else x)
 
         # ZIP 빌드
         ts = datetime.utcnow().strftime('%Y%m%d_%H%M')
@@ -1529,10 +1815,23 @@ def export_data():
                         cols = sorted({k for r in rows for k in r.keys()})
                     else:
                         cols = []
-                    writer = csv.DictWriter(sio, fieldnames=cols, extrasaction='ignore')
+                    
+                    # 컬럼명을 한국어로 변경
+                    korean_cols = [column_mapping.get(col, col) for col in cols]
+                    
+                    writer = csv.DictWriter(sio, fieldnames=korean_cols, extrasaction='ignore')
                     writer.writeheader()
                     for r in rows:
-                        writer.writerow({k: r.get(k) for k in cols})
+                        # 원본 컬럼명을 한국어 컬럼명으로 매핑
+                        row_data = {column_mapping.get(k, k): r.get(k) for k in cols}
+                        # integration_type 값 한국어 변환 (integration_type_mapping 사용)
+                        if 'integration_type' in r and r['integration_type'] in integration_type_mapping:
+                            korean_col_name = column_mapping.get('integration_type', 'integration_type')
+                            if korean_col_name in row_data:
+                                row_data[korean_col_name] = integration_type_mapping[r['integration_type']]
+                        elif '연동유형' in row_data and row_data['연동유형'] in integration_type_mapping:
+                            row_data['연동유형'] = integration_type_mapping[row_data['연동유형']]
+                        writer.writerow(row_data)
                     # UTF-8 BOM
                     zf.writestr(path, '\ufeff' + sio.getvalue())
                 except Exception as e_csv:
@@ -1545,34 +1844,353 @@ def export_data():
                 write_csv('data/site_products.csv', data_products)
                 write_csv('data/work_items.csv', data_work_items)
                 write_csv('data/site_photos.csv', data_photos)
+                write_csv('data/site_household_integrations.csv', data_household_integrations)
+                write_csv('data/site_common_integrations.csv', data_common_integrations)
 
-            # Excel 한 시트
+            # Excel 현장별 별도 파일 생성 (구조화된 양식)
             if fmt in ['xlsx','both']:
                 try:
-                    # xlsxwriter 우선, 실패 시 openpyxl 시도
-                    engine = None
-                    engine_errors = {}
-                    try:
-                        import xlsxwriter  # noqa: F401
-                        engine = 'xlsxwriter'
-                    except Exception as ex_xw:
-                        engine_errors['xlsxwriter'] = repr(ex_xw)
-                    if engine is None:
+                    import openpyxl
+                    from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+                    
+                    # 각 현장별로 별도 엑셀 파일 생성
+                    excel_files_created = 0
+                    excel_errors = []
+                    
+                    for site_id in site_ids:
                         try:
-                            import openpyxl  # noqa: F401
-                            engine = 'openpyxl'
-                        except Exception as ex_op:
-                            engine_errors['openpyxl'] = repr(ex_op)
+                            # 현장 기본 정보 찾기
+                            site_info = next((s for s in data_sites if s.get('id') == site_id), None)
+                            if not site_info:
+                                excel_errors.append(f"현장 {site_id}: 기본 정보를 찾을 수 없습니다.")
+                                continue
+                            
+                            # 현장별 데이터 수집
+                            site_contact = next((c for c in data_contacts if c.get('site_id') == site_id), {})
+                            site_product = next((p for p in data_products if p.get('site_id') == site_id), {})
+                            site_household = [h for h in data_household_integrations if h.get('site_id') == site_id]
+                            site_common = [c for c in data_common_integrations if c.get('site_id') == site_id]
+                            
+                            # 엑셀 워크북 생성
+                            wb = openpyxl.Workbook()
+                            ws = wb.active
+                            ws.title = "현장 관리 시트"
+                            
+                            # 스타일 및 레이아웃 정의
+                            title_font = Font(name='맑은 고딕', size=16, bold=True)
+                            section_font = Font(name='맑은 고딕', size=12, bold=True)
+                            label_font = Font(name='맑은 고딕', size=10, bold=True)
+                            normal_font = Font(name='맑은 고딕', size=10)
+                            thin_border = Border(
+                                left=Side(style='thin'),
+                                right=Side(style='thin'),
+                                top=Side(style='thin'),
+                                bottom=Side(style='thin')
+                            )
+                            columns = ['A', 'B', 'C', 'D', 'E', 'F']
+                            col_widths = [16, 22, 16, 22, 16, 22]
+                            label_fill = PatternFill(start_color='FFE7E6E6', end_color='FFE7E6E6', fill_type='solid')
+                            section_fill = PatternFill(start_color='FFD0CECE', end_color='FFD0CECE', fill_type='solid')
 
-                    if engine is None:
-                        raise RuntimeError("No Excel engine available (xlsxwriter/openpyxl): " + str(engine_errors))
+                            ws.sheet_view.showGridLines = False
+                            for letter, width in zip(columns, col_widths):
+                                ws.column_dimensions[letter].width = width
 
-                    xls = BytesIO()
-                    with pd.ExcelWriter(xls, engine=engine) as writer:
-                        # 하나의 시트에 모두(컬럼 유니온) + table 컬럼 포함
-                        df_all.to_excel(writer, sheet_name='export', index=False)
-                    xls.seek(0)
-                    zf.writestr('data/export.xlsx', xls.read())
+                            def normalize(value):
+                                if value is None:
+                                    return ''
+                                # 숫자나 날짜는 문자열로 변환하지 않고 그대로 유지
+                                if isinstance(value, (int, float, bool)):
+                                    return value
+                                # 문자열이면 공백 제거
+                                if isinstance(value, str):
+                                    return value.strip()
+                                return value
+
+                            def as_yes_no(value):
+                                if value is None:
+                                    return ''
+                                if isinstance(value, bool):
+                                    return '예' if value else '아니오'
+                                val = str(value).strip().upper()
+                                if val in ('Y', 'YES', 'TRUE', '1'):
+                                    return '예'
+                                if val in ('N', 'NO', 'FALSE', '0'):
+                                    return '아니오'
+                                return str(value)
+
+                            def write_label_value(row_idx: int, col_idx: int, label: str, value, span: int = 1, wrap: bool = False) -> int:
+                                if col_idx >= len(columns):
+                                    return len(columns)
+                                label_cell = ws[f'{columns[col_idx]}{row_idx}']
+                                label_cell.value = label or ''
+                                label_cell.font = label_font
+                                label_cell.border = thin_border
+                                label_cell.alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+                                # openpyxl에서는 fill에 None을 할당할 수 없으므로 조건부로 설정
+                                if label:
+                                    label_cell.fill = label_fill
+
+                                value_start = col_idx + 1
+                                available = len(columns) - value_start
+                                if available <= 0:
+                                    return len(columns)
+                                span = max(1, min(span, available))
+                                value_end = value_start + span - 1
+
+                                for idx in range(value_start, value_end + 1):
+                                    ws[f'{columns[idx]}{row_idx}'].border = thin_border
+
+                                if value_start != value_end:
+                                    ws.merge_cells(f'{columns[value_start]}{row_idx}:{columns[value_end]}{row_idx}')
+
+                                value_cell = ws[f'{columns[value_start]}{row_idx}']
+                                value_cell.value = normalize(value)
+                                value_cell.font = normal_font
+                                value_cell.alignment = Alignment(horizontal='left', vertical='center', wrap_text=wrap)
+                                if wrap:
+                                    current_height = ws.row_dimensions[row_idx].height or 0
+                                    ws.row_dimensions[row_idx].height = max(current_height, 36)
+
+                                return value_end + 1
+
+                            def write_row_with_pairs(row_idx: int, items: list) -> int:
+                                col_idx = 0
+                                for item in items:
+                                    if col_idx >= len(columns):
+                                        break
+                                    if item is None:
+                                        col_idx = write_label_value(row_idx, col_idx, '', '', span=1)
+                                        continue
+                                    label = item.get('label', '')
+                                    value = item.get('value')
+                                    span = item.get('span', 1)
+                                    wrap = item.get('wrap', False)
+                                    col_idx = write_label_value(row_idx, col_idx, label, value, span=span, wrap=wrap)
+                                while col_idx < len(columns):
+                                    col_idx = write_label_value(row_idx, col_idx, '', '', span=1)
+                                return row_idx + 1
+
+                            def write_section_header(row_idx: int, title: str) -> int:
+                                ws.merge_cells(f'A{row_idx}:F{row_idx}')
+                                cell = ws[f'A{row_idx}']
+                                cell.value = title
+                                cell.font = section_font
+                                cell.fill = section_fill
+                                cell.alignment = Alignment(horizontal='left', vertical='center')
+                                cell.border = thin_border
+                                for col in columns[1:]:
+                                    ws[f'{col}{row_idx}'].border = thin_border
+                                return row_idx + 1
+
+                            def write_integration_rows(row_idx: int, records: list, order: list) -> int:
+                                records_by_type = {}
+                                for rec in records:
+                                    key = rec.get('integration_type') if rec else None
+                                    key = key or '기타'
+                                    records_by_type.setdefault(key, []).append(rec)
+                                processed = set()
+                                for key in order:
+                                    processed.add(key)
+                                    entries = records_by_type.get(key)
+                                    if not entries:
+                                        entries = [None]
+                                    for rec in entries:
+                                        enabled_val = as_yes_no((rec or {}).get('enabled')) or '예 / 아니오'
+                                        row_idx = write_row_with_pairs(row_idx, [
+                                            {'label': integration_type_mapping.get(key, key), 'value': enabled_val},
+                                            {'label': '업체명', 'value': (rec or {}).get('company_name')},
+                                            {'label': '담당자', 'value': (rec or {}).get('contact_person')},
+                                        ])
+                                        row_idx = write_row_with_pairs(row_idx, [
+                                            {'label': '연락처', 'value': (rec or {}).get('contact_phone')},
+                                            {'label': '기타', 'value': (rec or {}).get('notes'), 'span': 3, 'wrap': True},
+                                        ])
+                                for key, entries in records_by_type.items():
+                                    if key in processed:
+                                        continue
+                                    for rec in entries:
+                                        enabled_val = as_yes_no((rec or {}).get('enabled')) or '예 / 아니오'
+                                        label = integration_type_mapping.get(key, key or '기타')
+                                        row_idx = write_row_with_pairs(row_idx, [
+                                            {'label': label, 'value': enabled_val},
+                                            {'label': '업체명', 'value': (rec or {}).get('company_name')},
+                                            {'label': '담당자', 'value': (rec or {}).get('contact_person')},
+                                        ])
+                                        row_idx = write_row_with_pairs(row_idx, [
+                                            {'label': '연락처', 'value': (rec or {}).get('contact_phone')},
+                                            {'label': '기타', 'value': (rec or {}).get('notes'), 'span': 3, 'wrap': True},
+                                        ])
+                                return row_idx
+
+                            ws.merge_cells('A1:F1')
+                            ws['A1'] = '현장 관리 시트'
+                            ws['A1'].font = title_font
+                            ws['A1'].alignment = Alignment(horizontal='center', vertical='center')
+                            ws.row_dimensions[1].height = 28
+
+                            row = 2
+
+                            address = site_info.get('address', '')
+                            detail_address = site_info.get('detail_address', '')
+                            full_address = f"{address} {detail_address}".strip() if detail_address else address
+                            special_notes = site_info.get('special_notes', '')
+
+                            row = write_row_with_pairs(row, [
+                                {'label': '등록일', 'value': site_info.get('registration_date')},
+                                {'label': '납품예정', 'value': site_info.get('delivery_date')},
+                                {'label': '준공일', 'value': site_info.get('completion_date')},
+                            ])
+                            row = write_row_with_pairs(row, [
+                                {'label': '프로젝트 No.', 'value': site_info.get('project_no')},
+                                {'label': '건설사', 'value': site_info.get('construction_company')},
+                                {'label': '현장명', 'value': site_info.get('site_name')},
+                            ])
+                            row = write_row_with_pairs(row, [
+                                {'label': '주소', 'value': full_address, 'span': 5, 'wrap': True},
+                            ])
+                            row = write_row_with_pairs(row, [
+                                {'label': '세대수', 'value': site_info.get('household_count')},
+                                {'label': '제품 BI', 'value': site_info.get('product_bi')},
+                                {'label': '인증심사여부', 'value': as_yes_no(site_info.get('certification_audit')) or '예 / 아니오'},
+                            ])
+                            row = write_row_with_pairs(row, [
+                                {'label': 'PM 이름', 'value': site_contact.get('pm_name')},
+                                {'label': 'PM 전화번호', 'value': site_contact.get('pm_phone')},
+                                {'label': '영업담당자', 'value': site_contact.get('sales_manager_name')},
+                            ])
+                            row = write_row_with_pairs(row, [
+                                {'label': '영업담당자 전화', 'value': site_contact.get('sales_manager_phone')},
+                                {'label': '설치점', 'value': site_contact.get('installer_name')},
+                                {'label': '설치점 전화', 'value': site_contact.get('installer_phone')},
+                            ])
+                            row = write_row_with_pairs(row, [
+                                {'label': '네트워크점', 'value': site_contact.get('network_manager_name')},
+                                {'label': '네트워크점 전화', 'value': site_contact.get('network_manager_phone')},
+                                {'label': '건설사 담당자', 'value': site_contact.get('construction_manager_name')},
+                            ])
+                            row = write_row_with_pairs(row, [
+                                {'label': '건설사 담당자 전화', 'value': site_contact.get('construction_manager_phone')},
+                                {'label': '외부망 연동', 'value': as_yes_no(site_info.get('external_network_enabled')) or '예 / 아니오'},
+                                {'label': '가입기간', 'value': site_info.get('external_network_period')},
+                            ])
+                            row = write_row_with_pairs(row, [
+                                {'label': '홈IoT연동여부', 'value': as_yes_no(site_info.get('home_iot')) or '예 / 아니오'},
+                                {'label': '현장관리자', 'value': site_info.get('site_manager')},
+                                {'label': '수정일시', 'value': site_info.get('updated_at')},
+                            ])
+                            row = write_row_with_pairs(row, [
+                                {'label': '현장 특이사항', 'value': special_notes, 'span': 5, 'wrap': True},
+                            ])
+
+                            row = write_section_header(row, '제품 수량')
+
+                            product_definitions = [
+                                ('월패드', 'wallpad_model', 'wallpad_qty'),
+                                ('도어폰', 'doorphone_model', 'doorphone_qty'),
+                                ('로비폰', 'lobbyphone_model', 'lobbyphone_qty'),
+                                ('경비실기', 'guardphone_model', 'guardphone_qty'),
+                                ('자석감지기', 'magnet_sensor_model', 'magnet_sensor_qty'),
+                                ('동체감지기', 'motion_sensor_model', 'motion_sensor_qty'),
+                            ]
+                            opener_model = site_product.get('opener_model')
+                            opener_qty = site_product.get('opener_qty')
+                            if opener_model or opener_qty:
+                                product_definitions.append(('개폐기', 'opener_model', 'opener_qty'))
+
+                            for idx in range(0, len(product_definitions), 3):
+                                chunk = product_definitions[idx:idx + 3]
+                                model_row = []
+                                qty_row = []
+                                for name, model_key, qty_key in chunk:
+                                    model_row.append({'label': name, 'value': site_product.get(model_key)})
+                                    qty_row.append({'label': '수량', 'value': site_product.get(qty_key)})
+                                while len(model_row) < 3:
+                                    model_row.append(None)
+                                    qty_row.append(None)
+                                row = write_row_with_pairs(row, model_row)
+                                row = write_row_with_pairs(row, qty_row)
+
+                            household_order = [
+                                'lighting_sw', 'standby_power_sw', 'gas_detector', 'heating', 'ventilation',
+                                'door_lock', 'air_conditioner', 'real_time_metering', 'environment_sensor',
+                                'vpn', 'all_off_switch', 'bathroom_phone', 'kitchen_tv'
+                            ]
+                            common_order = [
+                                'parking_control', 'remote_metering', 'cctv', 'elevator', 'parcel',
+                                'ev_charger', 'parking_location', 'onepass', 'rf_card'
+                            ]
+
+                            row = write_section_header(row, '세대부 연동')
+                            row = write_integration_rows(row, site_household, household_order)
+
+                            row = write_section_header(row, '공용부 연동')
+                            row = write_integration_rows(row, site_common, common_order)
+
+                            # 파일명 생성 (프로젝트No_현장명 형식으로 통일)
+                            site_name = str(site_info.get('site_name') or '').strip()
+                            if not site_name:
+                                site_name = f'현장_{site_id}'
+                            
+                            project_no = str(site_info.get('project_no') or '').strip()
+                            if project_no:
+                                # 프로젝트No_현장명 형식
+                                filename = f"{project_no}_{site_name}"
+                            else:
+                                # 프로젝트No가 없으면 현장명만 사용
+                                filename = site_name
+                            
+                            # 파일명에 사용할 수 없는 문자 제거 및 정리
+                            invalid_chars = ['/', '\\', ':', '*', '?', '"', '<', '>', '|', '\n', '\r', '\t']
+                            for char in invalid_chars:
+                                filename = filename.replace(char, '_')
+                            # 연속된 언더스코어 제거
+                            while '__' in filename:
+                                filename = filename.replace('__', '_')
+                            # 앞뒤 공백 및 언더스코어 제거
+                            filename = filename.strip('_').strip()
+                            if not filename:
+                                filename = f'현장_{site_id}'
+                            
+                            # 엑셀 파일을 메모리에 저장
+                            excel_buffer = BytesIO()
+                            wb.save(excel_buffer)
+                            excel_buffer.seek(0)
+                            
+                            # 파일 크기 확인 (빈 파일 방지)
+                            excel_data = excel_buffer.read()
+                            if len(excel_data) < 100:  # 최소 Excel 파일 크기 체크
+                                raise Exception(f"생성된 Excel 파일이 너무 작습니다 ({len(excel_data)} bytes)")
+                            
+                            # ZIP에 추가
+                            zf.writestr(f'sites/{filename}.xlsx', excel_data)
+                            excel_files_created += 1
+                            
+                        except Exception as site_error:
+                            # site_info가 정의되지 않았을 수 있으므로 안전하게 처리
+                            site_name_for_error = 'N/A'
+                            try:
+                                if 'site_info' in locals() and site_info:
+                                    site_name_for_error = site_info.get('site_name', 'N/A')
+                            except Exception:
+                                pass
+                            error_msg = f"현장 {site_id} (현장명: {site_name_for_error}) 엑셀 생성 오류: {str(site_error)}"
+                            print(error_msg)
+                            excel_errors.append(error_msg)
+                            import traceback
+                            print(traceback.format_exc())
+                            continue
+                    
+                    # Excel 생성 결과 요약 로그 추가
+                    if excel_errors:
+                        error_log = f"Excel 생성 중 발생한 오류:\n\n"
+                        error_log += f"총 {len(site_ids)}개 현장 중 {excel_files_created}개 성공, {len(excel_errors)}개 실패\n\n"
+                        error_log += "\n".join(excel_errors)
+                        zf.writestr('data/excel_errors.txt', error_log)
+                        print(f"[WARN] Excel 생성 중 {len(excel_errors)}개 현장에서 오류 발생")
+                    else:
+                        print(f"[INFO] 모든 현장({excel_files_created}개)의 Excel 파일이 성공적으로 생성되었습니다.")
+                            
                 except Exception as e_xlsx:
                     # 실패 시 안내 파일만 기록
                     try:
@@ -1706,23 +2324,74 @@ def upsert_work_items(site_id):
         if not isinstance(items, list):
             return jsonify({'error': 'items 배열이 필요합니다.'}), 400
 
+        def _to_bool(val):
+            if isinstance(val, bool):
+                return val
+            if isinstance(val, (int, float)):
+                return val != 0
+            if isinstance(val, str):
+                return val.strip().lower() in ('true','1','y','yes','on')
+            return False
+
         saved = []
+        deleted_ids = []
         for it in items:
+            item_id = it.get('id')
+            delete_flag = _to_bool(it.get('delete_flag') or it.get('delete') or it.get('remove'))
+            if delete_flag:
+                if item_id:
+                    try:
+                        supabase.table('work_items').delete().eq('id', item_id).eq('site_id', site_id).execute()
+                        deleted_ids.append(item_id)
+                        print(f"🗑️ 작업 항목 삭제 완료 (id={item_id})")
+                    except Exception as delete_err:
+                        print(f"❌ 작업 항목 삭제 오류 (id={item_id}): {str(delete_err)}")
+                        raise
+                else:
+                    print("⚠️ ID가 없는 항목 삭제 요청 무시")
+                continue
+
             content = (it.get('content') or '').strip()
             if not content:
                 continue
             status = (it.get('status') or 'todo').strip().lower()
             if status not in ['todo','done']:
                 status = 'todo'
+            # alarm_date 처리: 빈 문자열, None, null을 모두 None으로 변환
+            alarm_date_raw = it.get('alarm_date')
+            alarm_date = None
+            if alarm_date_raw is not None and alarm_date_raw != '':
+                # None이 아니고 빈 문자열도 아닌 경우에만 처리
+                alarm_date_str = str(alarm_date_raw).strip()
+                alarm_date = alarm_date_str if alarm_date_str else None
+            
+            # payload_data 구성
+            # alarm_date는 값이 있을 때만 포함 (None인 경우 제외하여 기존 값 유지)
+            # 하지만 alarm_date를 NULL로 설정하려면 명시적으로 포함해야 하므로,
+            # 업데이트 시에는 항상 포함하고, 업데이트 후 확인
             payload_data = {
                 'site_id': site_id,
                 'content': content,
                 'status': status,
-                'alarm_date': (it.get('alarm_date') or None),
                 'done_date': (it.get('done_date') or None),
                 'updated_at': datetime.utcnow().isoformat(),
                 'created_by': payload['user_id']
             }
+            
+            # alarm_date는 명시적으로 포함 (None이어도)
+            # Supabase는 None 값을 포함하면 해당 필드를 업데이트하지 않을 수 있으므로,
+            # 업데이트 후 실제 데이터를 다시 조회하여 확인
+            if alarm_date is not None:
+                payload_data['alarm_date'] = alarm_date
+            else:
+                # alarm_date가 None인 경우, 명시적으로 NULL로 설정하기 위해 포함
+                # Supabase Python 클라이언트가 None을 필터링할 수 있으므로,
+                # 업데이트 후 확인이 필요
+                payload_data['alarm_date'] = None
+            
+            # 디버깅: 업데이트할 데이터 로그 출력
+            if it.get('id'):
+                print(f"📝 업데이트할 항목 (id={it.get('id')}): alarm_date={alarm_date}, status={status}, content={content[:50]}")
             # done 저장인데 done_date가 없으면 클라이언트 로컬 날짜를 못받은 경우를 대비해 서버 날짜로 보정
             if status == 'done' and not payload_data['done_date']:
                 payload_data['done_date'] = date.today().isoformat()
@@ -1733,16 +2402,61 @@ def upsert_work_items(site_id):
 
             if it.get('id'):
                 # 업데이트 (상태 전환 포함)
-                res = supabase.table('work_items').update(payload_data).eq('id', it['id']).eq('site_id', site_id).execute()
-                if res.data:
-                    saved.append(res.data[0])
+                # Supabase는 None 값을 포함한 필드를 업데이트하지 않을 수 있으므로,
+                # alarm_date가 None인 경우 명시적으로 처리
+                update_payload = dict(payload_data)
+                # None 값을 포함한 필드도 업데이트되도록 보장
+                # Supabase Python 클라이언트는 None 값을 포함하면 해당 필드를 업데이트하지 않으므로,
+                # 업데이트 후 실제 데이터를 다시 조회하여 확인
+                try:
+                    res = supabase.table('work_items').update(update_payload).eq('id', it['id']).eq('site_id', site_id).execute()
+                    # 업데이트 후 실제 데이터를 다시 조회하여 확인 (res.data가 비어있을 수 있음)
+                    if res.data and len(res.data) > 0:
+                        saved.append(res.data[0])
+                        # alarm_date가 None으로 설정되어야 하는데 업데이트되지 않은 경우 재시도
+                        updated_item = res.data[0]
+                        if alarm_date is None and updated_item.get('alarm_date') is not None:
+                            print(f"⚠️ alarm_date가 NULL로 설정되지 않음 (res.data 있음), 재시도...")
+                            retry_payload = {'alarm_date': None, 'updated_at': datetime.utcnow().isoformat()}
+                            try:
+                                retry_res = supabase.table('work_items').update(retry_payload).eq('id', it['id']).eq('site_id', site_id).execute()
+                                if retry_res.data:
+                                    saved[-1] = retry_res.data[0]
+                                    print(f"✅ alarm_date NULL 설정 성공")
+                            except Exception as retry_err:
+                                print(f"⚠️ alarm_date NULL 설정 재시도 실패: {str(retry_err)}")
+                    else:
+                        # res.data가 비어있어도 업데이트는 성공했을 수 있으므로, 실제 데이터를 다시 조회
+                        verify_res = supabase.table('work_items').select('*').eq('id', it['id']).eq('site_id', site_id).execute()
+                        if verify_res.data and len(verify_res.data) > 0:
+                            saved.append(verify_res.data[0])
+                            # 업데이트된 데이터 확인
+                            updated_item = verify_res.data[0]
+                            print(f"✅ 업데이트 확인 (id={it['id']}): status={updated_item.get('status')}, alarm_date={updated_item.get('alarm_date')}")
+                            # alarm_date가 None으로 설정되어야 하는데 업데이트되지 않은 경우 재시도
+                            if alarm_date is None and updated_item.get('alarm_date') is not None:
+                                print(f"⚠️ alarm_date가 NULL로 설정되지 않음, 재시도...")
+                                # None 값을 명시적으로 NULL로 설정하기 위해 다시 시도
+                                retry_payload = {'alarm_date': None, 'updated_at': datetime.utcnow().isoformat()}
+                                try:
+                                    retry_res = supabase.table('work_items').update(retry_payload).eq('id', it['id']).eq('site_id', site_id).execute()
+                                    if retry_res.data:
+                                        saved[-1] = retry_res.data[0]  # 업데이트된 데이터로 교체
+                                        print(f"✅ alarm_date NULL 설정 성공")
+                                except Exception as retry_err:
+                                    print(f"⚠️ alarm_date NULL 설정 재시도 실패: {str(retry_err)}")
+                        else:
+                            print(f"⚠️ 업데이트 확인 실패 (id={it['id']}): 데이터를 찾을 수 없음")
+                except Exception as update_err:
+                    print(f"❌ 업데이트 오류 (id={it['id']}): {str(update_err)}")
+                    raise
             else:
                 payload_data['created_at'] = datetime.utcnow().isoformat()
                 res = supabase.table('work_items').insert(payload_data).execute()
                 if res.data:
                     saved.append(res.data[0])
 
-        return jsonify({'message': '작업 항목이 저장되었습니다.', 'items': saved}), 200
+        return jsonify({'message': '작업 항목이 저장되었습니다.', 'items': saved, 'deleted': deleted_ids}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

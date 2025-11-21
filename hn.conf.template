@@ -1,0 +1,32 @@
+server {
+    listen 80;
+    server_name _;
+
+    # 프런트엔드 정적 파일 경로
+    # ⚠️ 각 서버의 실제 경로로 수정하세요!
+    # Azure: /home/azureadmin/apps/hn_install/Home-Network-Installation-Management/frontend
+    # AWS: /home/awsuser/apps/hn_install/Home-Network-Installation-Management/frontend (또는 실제 경로)
+    root /home/USERNAME/apps/hn_install/Home-Network-Installation-Management/frontend;
+    index index.html;
+
+    # 정적 파일 우선 처리 (js, css, images 등)
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    # 백엔드 API는 Gunicorn(Flask)으로 직접 프록시 (Azure & AWS 동일)
+    location ~ ^/(auth|sites|export|users|admin|contacts-master|check-project-no|uploads) {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # SPA 라우팅: 존재하지 않는 경로는 index.html로
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+

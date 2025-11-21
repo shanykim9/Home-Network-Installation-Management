@@ -9,23 +9,45 @@ function showAuthPage() {
 }
 
 function showMainDashboard() {
-    document.getElementById('auth-page').classList.add('hidden');
-    document.getElementById('main-dashboard').classList.remove('hidden');
-    document.getElementById('site-registration-page').classList.add('hidden');
-    const adminPage = document.getElementById('admin-page');
-    if (adminPage) adminPage.classList.add('hidden');
-}
-
-function showPage(pageName) {
     // 모든 페이지 숨기기
-    document.getElementById('main-dashboard').classList.add('hidden');
+    document.getElementById('auth-page').classList.add('hidden');
     document.getElementById('site-registration-page').classList.add('hidden');
+    
+    // 관리자 페이지 명시적으로 숨기기
+    const adminPage = document.getElementById('admin-page');
+    if (adminPage) {
+        adminPage.classList.add('hidden');
+    }
+    
+    // 다른 페이지들도 숨기기
     const workPage = document.getElementById('site-work-page');
     if (workPage) workPage.classList.add('hidden');
     const photosPage = document.getElementById('site-photos-page');
     if (photosPage) photosPage.classList.add('hidden');
-    const adminHide = document.getElementById('admin-page');
-    if (adminHide) adminHide.classList.add('hidden');
+    
+    // 메인 대시보드만 보이기
+    document.getElementById('main-dashboard').classList.remove('hidden');
+}
+
+function showPage(pageName) {
+    // 모든 페이지 명시적으로 숨기기
+    const mainDashboard = document.getElementById('main-dashboard');
+    if (mainDashboard) mainDashboard.classList.add('hidden');
+    
+    const siteRegistration = document.getElementById('site-registration-page');
+    if (siteRegistration) siteRegistration.classList.add('hidden');
+    
+    const workPage = document.getElementById('site-work-page');
+    if (workPage) workPage.classList.add('hidden');
+    
+    const photosPage = document.getElementById('site-photos-page');
+    if (photosPage) photosPage.classList.add('hidden');
+    
+    // 관리자 페이지 반드시 숨기기
+    const adminPage = document.getElementById('admin-page');
+    if (adminPage) {
+        adminPage.classList.add('hidden');
+    }
     
     // 요청된 페이지 보이기
     switch(pageName) {
@@ -33,10 +55,11 @@ function showPage(pageName) {
             showMainDashboard();
             break;
         case 'admin':
-            const adminPage = document.getElementById('admin-page');
-            if (adminPage) {
+            // 관리자 페이지는 위에서 이미 숨겼으므로 다시 보이기
+            const adminPageShow = document.getElementById('admin-page');
+            if (adminPageShow) {
                 document.getElementById('main-dashboard').classList.add('hidden');
-                adminPage.classList.remove('hidden');
+                adminPageShow.classList.remove('hidden');
                 try{ if (typeof loadAdminUsers === 'function') loadAdminUsers(); }catch(_){ }
             } else {
                 Swal.fire('알림', '관리자 페이지를 찾을 수 없습니다.', 'warning');

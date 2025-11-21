@@ -247,6 +247,7 @@
                                     <th class="text-left py-2 pr-4">알람일</th>
                                     <th class="text-left py-2 pr-4">할 일</th>
                                     <th class="text-left py-2">완료</th>
+                                    <th class="text-left py-2 pl-2">삭제</th>
                                 </tr>
                             </thead>
                             <tbody id="work-todo-tbody"></tbody>
@@ -270,6 +271,7 @@
                                 <tr>
                                     <th class="text-left py-2 pr-4">일자</th>
                                     <th class="text-left py-2 pr-4">한 일</th>
+                                    <th class="text-left py-2 pl-2">삭제</th>
                                 </tr>
                             </thead>
                             <tbody id="work-done-tbody"></tbody>
@@ -441,16 +443,34 @@
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
                     </div>
                     
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-2">주소</label>
-                        <input type="text" id="address" required 
-                            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">시 / 도</label>
+                            <select id="address-sido" required
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                                <option value="">시/도 선택</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">시 / 군 / 구</label>
+                            <select id="address-sigungu" required disabled
+                                class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500 bg-gray-50 text-gray-500">
+                                <option value="">시/군/구 선택</option>
+                            </select>
+                        </div>
                     </div>
                     
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-gray-700 mb-2">상세주소</label>
                         <input type="text" id="detail-address" required 
                             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-blue-500">
+                    </div>
+                    
+                    <div class="md:col-span-2">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">전체 주소</label>
+                        <input type="text" id="address-display" readonly
+                            class="w-full px-3 py-2 border border-dashed border-gray-300 rounded-md bg-gray-50 text-gray-600 focus:outline-none">
+                        <input type="hidden" id="address">
                     </div>
                     
                     <div>
@@ -1151,6 +1171,7 @@
     <script src="js/temp-storage.js"></script>
     <script src="js/site-tabs.js"></script>
     <script src="js/site-work.js"></script>
+    <script src="js/regions.js"></script>
     <script src="js/site-basic.js"></script>
     <script src="js/site-contacts.js"></script>
     <script src="js/site-products.js"></script>

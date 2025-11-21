@@ -48,6 +48,8 @@
             construction_company: document.getElementById('construction-company')?.value,
             site_name: document.getElementById('site-name')?.value,
             address: document.getElementById('address')?.value,
+            address_sido: document.getElementById('address-sido')?.value,
+            address_sigungu: document.getElementById('address-sigungu')?.value,
             detail_address: document.getElementById('detail-address')?.value,
             household_count: document.getElementById('household-count')?.value,
             registration_date: document.getElementById('registration-date')?.value,
@@ -153,8 +155,15 @@
           }
           if (tempData.construction_company) document.getElementById('construction-company').value = tempData.construction_company;
           if (tempData.site_name) document.getElementById('site-name').value = tempData.site_name;
-          if (tempData.address) document.getElementById('address').value = tempData.address;
           if (tempData.detail_address) document.getElementById('detail-address').value = tempData.detail_address;
+          if (window.setRegionSelection) {
+            window.setRegionSelection(tempData.address_sido || '', tempData.address_sigungu || '');
+          } else {
+            if (tempData.address_sido) document.getElementById('address-sido').value = tempData.address_sido;
+            if (tempData.address_sigungu) document.getElementById('address-sigungu').value = tempData.address_sigungu;
+          }
+          if (tempData.address) document.getElementById('address').value = tempData.address;
+          if (typeof window.updateAddressDisplay === 'function') window.updateAddressDisplay();
           if (tempData.household_count) document.getElementById('household-count').value = tempData.household_count;
           if (tempData.registration_date) document.getElementById('registration-date').value = tempData.registration_date;
           if (tempData.delivery_date) document.getElementById('delivery-date').value = tempData.delivery_date;
@@ -335,11 +344,13 @@
       // 기본정보 payload 구성 (필드명은 site-basic.js와 동일)
       const basic = allTempData.basic || {};
       const projectNo = basic.project_no || (document.getElementById('project-no-prefix')?.value + document.getElementById('project-no-number')?.value) || null;
-      const basicPayload = Object.keys(basic).length ? basic : {
+      const basicPayload = Object.keys(basic).length ? { ...basic } : {
         project_no: projectNo || null,
         construction_company: document.getElementById('construction-company')?.value || null,
         site_name: document.getElementById('site-name')?.value || null,
         address: document.getElementById('address')?.value || null,
+        address_sido: document.getElementById('address-sido')?.value || null,
+        address_sigungu: document.getElementById('address-sigungu')?.value || null,
         detail_address: document.getElementById('detail-address')?.value || null,
         household_count: parseInt(document.getElementById('household-count')?.value||'0',10),
         registration_date: document.getElementById('registration-date')?.value || null,
@@ -348,6 +359,15 @@
         certification_audit: document.getElementById('certification-audit')?.value || 'N',
         home_iot: document.getElementById('home-iot')?.value || 'N'
       };
+      if(!basicPayload.address){
+        basicPayload.address = document.getElementById('address')?.value || null;
+      }
+      if(!basicPayload.address_sido){
+        basicPayload.address_sido = document.getElementById('address-sido')?.value || null;
+      }
+      if(!basicPayload.address_sigungu){
+        basicPayload.address_sigungu = document.getElementById('address-sigungu')?.value || null;
+      }
 
       let createdOrLoadedSite = null;
       if (!siteId) {
@@ -509,6 +529,11 @@
         body: { items }
       });
       
+      // 저장할 데이터가 없을 때 안내 메시지 반환
+      if(response.no_data){
+        return { success: true, message: '저장할 내용이 없습니다.', no_data: true };
+      }
+      
       console.log('💾 세대부연동 저장 성공:', response);
       return { success: true, message: response.message || '세대부연동 정보가 저장되었습니다.' };
     } catch (error) {
@@ -560,6 +585,11 @@
         method: 'POST',
         body: { items }
       });
+      
+      // 저장할 데이터가 없을 때 안내 메시지 반환
+      if(response.no_data){
+        return { success: true, message: '저장할 내용이 없습니다.', no_data: true };
+      }
       
       console.log('💾 공용부연동 저장 성공:', response);
       return { success: true, message: response.message || '공용부연동 정보가 저장되었습니다.' };

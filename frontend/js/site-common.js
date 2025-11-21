@@ -99,7 +99,12 @@
       {integration_type:'rf_card', enabled: gv('rfcard_enabled')||'N', company_name: gv('rfcard_company'), contact_person: gv('rfcard_contact_person'), contact_phone: gp('rfcard_contact_phone'), notes: gv('rfcard_notes'), project_no: projectNo},
     ];
     try{
-      await apiRequest(`/sites/${siteId}/integrations/common`, { method: 'POST', body: { items } });
+      const response = await apiRequest(`/sites/${siteId}/integrations/common`, { method: 'POST', body: { items } });
+      // 저장할 데이터가 없을 때 안내 메시지 표시
+      if(response.no_data){
+        if(!window.__batchSaving){ Swal.fire({icon:'info', title:'안내', text:'저장할 내용이 없습니다.', timer:2000, showConfirmButton:false}); }
+        return;
+      }
       if(!window.__batchSaving){ Swal.fire({icon:'success', title:'저장 완료', timer:1500, showConfirmButton:false}); }
       loadCommon();
     }catch(err){

@@ -107,7 +107,12 @@
       {integration_type:'kitchen_tv', enabled: gv('kitchentv_enabled')||'N', company_name: gv('kitchentv_company'), contact_person: gv('kitchentv_contact_person'), contact_phone: gp('kitchentv_contact_phone'), notes: gv('kitchentv_notes'), project_no: projectNo},
     ];
     try{
-      await apiRequest(`/sites/${siteId}/integrations/household`, { method: 'POST', body: { items } });
+      const response = await apiRequest(`/sites/${siteId}/integrations/household`, { method: 'POST', body: { items } });
+      // 저장할 데이터가 없을 때 안내 메시지 표시
+      if(response.no_data){
+        if(!window.__batchSaving){ Swal.fire({icon:'info', title:'안내', text:'저장할 내용이 없습니다.', timer:2000, showConfirmButton:false}); }
+        return;
+      }
       if(!window.__batchSaving){ Swal.fire({icon:'success', title:'저장 완료', timer:1500, showConfirmButton:false}); }
       loadHousehold();
     }catch(err){

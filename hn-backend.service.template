@@ -1,0 +1,27 @@
+[Unit]
+Description=HN Flask Backend (Gunicorn)
+After=network.target
+
+[Service]
+# ⚠️ 각 서버의 실제 사용자명으로 수정하세요!
+# Azure: azureadmin
+# AWS: awsuser (또는 실제 사용자명)
+User=USERNAME
+
+# ⚠️ 각 서버의 실제 경로로 수정하세요!
+# Azure: /home/azureadmin/apps/hn_install/Home-Network-Installation-Management/backend
+# AWS: /home/awsuser/apps/hn_install/Home-Network-Installation-Management/backend
+WorkingDirectory=/home/USERNAME/apps/hn_install/Home-Network-Installation-Management/backend
+
+# ⚠️ 각 서버의 실제 경로로 수정하세요!
+# Azure: /home/azureadmin/apps/hn_install/.venv/bin
+# AWS: /home/awsuser/apps/hn_install/.venv/bin
+Environment="PATH=/home/USERNAME/apps/hn_install/.venv/bin"
+
+# ⚠️ 각 서버의 실제 경로로 수정하세요!
+ExecStart=/home/USERNAME/apps/hn_install/.venv/bin/gunicorn -w 3 -b 127.0.0.1:8000 app:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
