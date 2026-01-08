@@ -18,6 +18,10 @@ app = Flask(__name__)
 # 환경변수 미설정 시에도 문자열 기본값을 보장
 app.config['SECRET_KEY'] = str(os.getenv('FLASK_SECRET_KEY') or 'dev-secret-key-change-in-production')
 
+# 파일 업로드 크기 제한 설정 (16MB)
+# 핸드폰 카메라 사진은 보통 5~15MB이므로 넉넉하게 설정
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
+
 # CORS 설정 - 개발용으로 모든 도메인 허용
 CORS(app, resources={r"/*": {"origins": "*", "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization", "User-Agent", "Accept", "Accept-Language", "Accept-Encoding"], "expose_headers": ["Content-Type", "Authorization"]}})
 
@@ -58,8 +62,9 @@ if not supabase_url or not supabase_key:
     supabase = DummySupabase()
 else:
     # SSL 인증서 검증 설정 (개발 환경에서 자체 서명 인증서 문제 해결)
-    # 환경 변수로 SSL 검증 여부 제어 (기본값: True, 개발 환경에서 False로 설정 가능)
-    verify_ssl = os.getenv('SUPABASE_VERIFY_SSL', 'false').lower() in ('true', '1', 'yes')
+    # 회사 네트워크 프록시 환경에서 SSL 검증을 비활성화
+    verify_ssl = False  # 로컬 개발 환경에서는 항상 False
+    print("[APP] SSL 검증 비활성화 (로컬 개발 모드)")
     
     if not verify_ssl:
         # 개발 환경: SSL 검증 비활성화 (자체 서명 인증서 문제 해결)

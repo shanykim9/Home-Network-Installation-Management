@@ -2,74 +2,137 @@
   let __photosInitDone = false;
   const gridId = 'photos-grid';
 
-  // 이미지 자동 압축/리사이즈: 8MB 이하 목표, JPEG로 인코딩
-  async function compressImageIfNeeded(file){
-    const MAX = 8 * 1024 * 1024;
-    try{
-      if(!(file && file.type && file.type.startsWith('image/'))) return file;
-      if(file.size <= MAX) return file;
-
-      // 이미지 로드
-      const url = URL.createObjectURL(file);
-      let bmp;
-      try{
-        if('createImageBitmap' in window){
-          // EXIF 방향 자동 반영 가능 브라우저는 옵션 사용
-          try{ bmp = await createImageBitmap(await fetch(url).then(r=>r.blob()), { imageOrientation: 'from-image' }); }
-          catch(_){ bmp = await createImageBitmap(await fetch(url).then(r=>r.blob())); }
-        }
-      }catch(_){ bmp = null; }
-      let imgW, imgH, draw;
-      if(bmp){
-        imgW = bmp.width; imgH = bmp.height; draw = (ctx, w, h)=>{ ctx.drawImage(bmp, 0, 0, w, h); };
-      }else{
-        const img = await new Promise((resolve, reject)=>{ const i=new Image(); i.onload=()=>resolve(i); i.onerror=reject; i.src=url; });
-        imgW = img.naturalWidth || img.width; imgH = img.naturalHeight || img.height; draw = (ctx, w, h)=>{ ctx.drawImage(img, 0, 0, w, h); };
+  // ============================================
+  // 이미지 압축 함수 (핵심!)
+  // 모든 이미지를 2MB 이하로 압축합니다
+  // ============================================
+  async function compressImage(file){
+    const TARGET_SIZE = 2 * 1024 * 1024;  // 목표: 2MB 이하
+    const MAX_DIMENSION = 1920;  // 최대 해상도: 1920px (Full HD)
+    
+    try {
+      // 이미지 파일인지 확인
+      if(!(file && file.type && file.type.startsWith('image/'))) {
+        console.log('[압축] 이미지 파일이 아님, 원본 반환');
+        return file;
       }
+
+      console.log(`[압축] 시작 - 원본: ${(file.size/1024/1024).toFixed(2)}MB`);
+
+      // 이미 충분히 작으면 그대로 반환 (500KB 이하)
+      if(file.size <= 500 * 1024) {
+        console.log('[압축] 이미 충분히 작음, 원본 반환');
+        return file;
+      }
+
+      // 이미지를 Canvas에 로드
+      const url = URL.createObjectURL(file);
+      const img = await new Promise((resolve, reject) => {
+        const image = new Image();
+        image.onload = () => resolve(image);
+        image.onerror = () => reject(new Error('이미지 로드 실패'));
+        image.src = url;
+      });
       URL.revokeObjectURL(url);
 
-      // 초기 스케일: 최대 변 3000px로 제한
-      const maxSide = 3000;
-      const baseScale = Math.min(1, maxSide / Math.max(imgW, imgH));
+      // 원본 크기
+      let width = img.naturalWidth || img.width;
+      let height = img.naturalHeight || img.height;
+      console.log(`[압축] 원본 해상도: ${width}x${height}`);
 
-      let scale = baseScale;
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d', { alpha: false });
-
-      async function tryEncode(q){
-        const w = Math.max(1, Math.round(imgW * scale));
-        const h = Math.max(1, Math.round(imgH * scale));
-        canvas.width = w; canvas.height = h;
-        ctx.clearRect(0,0,w,h);
-        draw(ctx, w, h);
-        const blob = await new Promise(res=> canvas.toBlob(res, 'image/jpeg', q));
-        return blob;
-      }
-
-      // 반복적으로 품질/크기를 줄여 목표 크기 도달
-      const qualities = [0.85, 0.75, 0.65, 0.55, 0.45, 0.35];
-      for(let step=0; step<3; step++){
-        for(const q of qualities){
-          const blob = await tryEncode(q);
-          if(blob && blob.size <= MAX){
-            const name = (file.name || 'image').replace(/\.[^.]+$/, '') + '.jpg';
-            return new File([blob], name, { type: 'image/jpeg' });
-          }
+      // 최대 해상도 제한 (비율 유지)
+      if (width > MAX_DIMENSION || height > MAX_DIMENSION) {
+        if (width > height) {
+          height = Math.round(height * (MAX_DIMENSION / width));
+          width = MAX_DIMENSION;
+        } else {
+          width = Math.round(width * (MAX_DIMENSION / height));
+          height = MAX_DIMENSION;
         }
-        // 품질을 낮춰도 안 되면 크기 자체를 더 줄임
-        scale *= 0.85;
-        if(scale < 0.2) break; // 과도한 축소 방지
+      }
+      console.log(`[압축] 리사이즈 후: ${width}x${height}`);
+
+      // Canvas 생성
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d', { alpha: false });
+      
+      // 흰색 배경 (투명 PNG 대응)
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, width, height);
+      
+      // 이미지 그리기
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // 품질을 낮춰가며 목표 크기 달성
+      const qualities = [0.9, 0.8, 0.7, 0.6, 0.5, 0.4, 0.3];
+      
+      for (const quality of qualities) {
+        const blob = await new Promise(resolve => 
+          canvas.toBlob(resolve, 'image/jpeg', quality)
+        );
+        
+        if (blob && blob.size <= TARGET_SIZE) {
+          const compressedFile = new File(
+            [blob], 
+            file.name.replace(/\.[^.]+$/, '.jpg'), 
+            { type: 'image/jpeg' }
+          );
+          console.log(`[압축] 성공! 품질: ${quality}, 크기: ${(blob.size/1024/1024).toFixed(2)}MB`);
+          return compressedFile;
+        }
+        console.log(`[압축] 품질 ${quality}: ${(blob.size/1024/1024).toFixed(2)}MB (목표 초과, 재시도)`);
       }
 
-      // 마지막 결과 반환(최소 품질)
-      const lastBlob = await new Promise(res=> canvas.toBlob(res, 'image/jpeg', 0.3));
-      if(lastBlob && lastBlob.size < file.size){
-        const name = (file.name || 'image').replace(/\.[^.]+$/, '') + '.jpg';
-        return new File([lastBlob], name, { type: 'image/jpeg' });
+      // 품질만으로 안 되면 해상도도 줄임
+      let scale = 0.8;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        const newWidth = Math.round(width * scale);
+        const newHeight = Math.round(height * scale);
+        
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, newWidth, newHeight);
+        ctx.drawImage(img, 0, 0, newWidth, newHeight);
+        
+        const blob = await new Promise(resolve => 
+          canvas.toBlob(resolve, 'image/jpeg', 0.6)
+        );
+        
+        if (blob && blob.size <= TARGET_SIZE) {
+          const compressedFile = new File(
+            [blob], 
+            file.name.replace(/\.[^.]+$/, '.jpg'), 
+            { type: 'image/jpeg' }
+          );
+          console.log(`[압축] 성공! 해상도: ${newWidth}x${newHeight}, 크기: ${(blob.size/1024/1024).toFixed(2)}MB`);
+          return compressedFile;
+        }
+        
+        scale *= 0.7;  // 더 줄임
       }
-      return file; // 압축 실패 시 원본 유지
-    }catch(_){
-      return file; // 오류 시 원본 전송, 서버에서 한 번 더 제한
+
+      // 최후의 수단: 최소 품질로 반환
+      const finalBlob = await new Promise(resolve => 
+        canvas.toBlob(resolve, 'image/jpeg', 0.3)
+      );
+      if (finalBlob) {
+        console.log(`[압축] 최종 결과: ${(finalBlob.size/1024/1024).toFixed(2)}MB`);
+        return new File(
+          [finalBlob], 
+          file.name.replace(/\.[^.]+$/, '.jpg'), 
+          { type: 'image/jpeg' }
+        );
+      }
+
+      console.log('[압축] 실패, 원본 반환');
+      return file;
+
+    } catch (error) {
+      console.error('[압축] 오류:', error);
+      return file;
     }
   }
 
@@ -186,36 +249,93 @@
     }catch(err){ Swal.fire('오류','삭제 중 오류가 발생했습니다.','error'); }
   }
 
+  // ============================================
+  // 사진 업로드 함수 (핵심!)
+  // ============================================
   async function uploadFromInput(inputEl){
     const siteId = getSelectedPhotosSiteId();
-    if(!siteId){ Swal.fire('안내','먼저 현장을 선택하세요.','info'); return; }
+    if(!siteId){ 
+      Swal.fire('안내','먼저 현장을 선택하세요.','info'); 
+      return; 
+    }
     if(!inputEl || !inputEl.files || !inputEl.files[0]) return;
+    
     let file = inputEl.files[0];
     const title = (document.getElementById('photo-title')?.value || '').trim();
-    // 8MB 초과 시 자동 압축/리사이즈 시도
-    const MAX = 8 * 1024 * 1024;
-    if(file.size > MAX){
-      try{ Swal.showLoading(); }catch(_){ }
-      file = await compressImageIfNeeded(file);
-      try{ Swal.close(); }catch(_){ }
-      if(file.size > MAX){
-        Swal.fire('안내','파일을 8MB 이하로 줄일 수 없습니다. 더 작은 이미지를 선택해주세요.','warning');
-        return;
+    
+    // 원본 파일 정보 출력
+    console.log('='.repeat(50));
+    console.log(`[업로드] 원본 파일: ${file.name}`);
+    console.log(`[업로드] 원본 크기: ${(file.size/1024/1024).toFixed(2)}MB`);
+    console.log(`[업로드] 타입: ${file.type}`);
+
+    // ★★★ 핵심: 모든 이미지를 무조건 압축! ★★★
+    // 500KB 초과 시 압축 (작은 파일은 그대로)
+    if(file.size > 500 * 1024) {
+      // 로딩 표시
+      Swal.fire({
+        title: '이미지 처리 중...',
+        html: '사진을 최적화하고 있습니다.<br>잠시만 기다려주세요.',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+      });
+      
+      try {
+        file = await compressImage(file);
+        Swal.close();
+      } catch (e) {
+        Swal.close();
+        console.error('[업로드] 압축 실패:', e);
       }
     }
+    
+    console.log(`[업로드] 최종 파일: ${file.name}`);
+    console.log(`[업로드] 최종 크기: ${(file.size/1024/1024).toFixed(2)}MB`);
 
+    // 최종 크기 체크 (3MB 초과 시 경고)
+    if(file.size > 3 * 1024 * 1024) {
+      Swal.fire({
+        icon: 'warning',
+        title: '파일이 너무 큽니다',
+        text: `파일 크기: ${(file.size/1024/1024).toFixed(1)}MB. 3MB 이하의 이미지를 사용해주세요.`,
+      });
+      return;
+    }
+
+    // FormData 생성
     const form = new FormData();
     form.append('file', file);
     form.append('title', title);
 
-    try{
+    // 업로드 시작
+    try {
+      Swal.fire({
+        title: '업로드 중...',
+        allowOutsideClick: false,
+        didOpen: () => { Swal.showLoading(); }
+      });
+
       await apiRequest(`/sites/${siteId}/photos`, { method:'POST', body: form, isFormData: true });
-      // 제목은 유지하여 연속 업로드 시 편의 제공
+      
+      Swal.fire({
+        icon: 'success',
+        title: '업로드 완료!',
+        text: '사진이 저장되었습니다.',
+        timer: 1500,
+        showConfirmButton: false
+      });
+
+      // 입력 초기화 및 목록 새로고침
       inputEl.value = '';
       await loadPhotos();
-    }catch(err){
-      console.error(err);
-      Swal.fire('오류', String(err && err.message ? err.message : '사진 업로드 중 오류가 발생했습니다.'), 'error');
+      
+    } catch(err) {
+      console.error('[업로드] 오류:', err);
+      Swal.fire({
+        icon: 'error',
+        title: '업로드 실패',
+        text: err && err.message ? err.message : '사진 업로드 중 오류가 발생했습니다.'
+      });
     }
   }
 
@@ -246,4 +366,3 @@
 
   window.initPhotosPage = init;
 })();
-

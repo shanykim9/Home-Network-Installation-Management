@@ -106,7 +106,9 @@ if not supabase_url or not supabase_key:
         pass
 else:
     # SSL 인증서 검증 설정 (app.py와 동일)
-    verify_ssl = os.getenv('SUPABASE_VERIFY_SSL', 'false').lower() in ('true', '1', 'yes')
+    # 회사 네트워크 프록시 환경에서 SSL 검증을 비활성화
+    verify_ssl = False  # 로컬 개발 환경에서는 항상 False
+    print("[SITES] SSL 검증 비활성화 (로컬 개발 모드)")
     
     if not verify_ssl:
         import urllib3
@@ -287,36 +289,67 @@ def admin_update_user_role(user_id):
         if user_id == payload.get('user_id') and new_role != 'admin':
             return jsonify({'error': '자기 자신을 일반사용자로 강등할 수 없습니다.'}), 400
 
+        # 먼저 대상 사용자의 현재 역할을 조회
+        try:
+            target_user_result = supabase.table('users').select('id, user_role').eq('id', user_id).execute()
+            target_user = target_user_result.data[0] if target_user_result.data else None
+            if not target_user:
+                return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
+            current_role = target_user.get('user_role', 'user')
+            print(f"[ADMIN] 역할 변경 요청: user_id={user_id}, 현재역할={current_role}, 새역할={new_role}")
+        except Exception as e:
+            print(f"[ADMIN] 대상 사용자 조회 실패: {e}")
+            current_role = None
+
+        # 이미 같은 역할이면 변경할 필요 없음
+        if current_role == new_role:
+            return jsonify({'message': '이미 해당 역할입니다.', 'user': target_user}), 200
+
         # 관리자 승격 제한: 현재 활성 관리자 수 < 2 일 때만 허용
         if new_role == 'admin':
             try:
-                # 우선 RPC 경로 시도(원자성 보장)
-                if 'supabase_service' in globals() and supabase_service:
-                    rpc_res = supabase_service.rpc('promote_to_admin', {'p_user_id': user_id}).execute()
-                    return jsonify({'message': '관리자로 승격되었습니다.', 'result': getattr(rpc_res, 'data', None)}), 200
-            except Exception as rpc_err:
-                # RPC 실패 시 서버 측 폴백(경합 가능성 있지만 UX 보장)
+                # 현재 관리자 목록 조회
+                rows = supabase.table('users').select('id, is_active, deleted_at, user_role').eq('user_role','admin').execute()
+                admins = rows.data or []
+                
+                def _is_active(u):
+                    return (u.get('is_active') is not False) and (u.get('deleted_at') is None)
+                
+                active_admins = [u for u in admins if _is_active(u)]
+                
+                # 대상 사용자가 이미 관리자 목록에 있는지 확인 (이미 관리자인 경우)
+                target_is_already_admin = any(a.get('id') == user_id for a in active_admins)
+                
+                print(f"[ADMIN] 현재 활성 관리자 수: {len(active_admins)}, 대상이 이미 관리자: {target_is_already_admin}")
+                
+                # 대상이 이미 관리자가 아닌 경우에만 관리자 수 제한 체크
+                if not target_is_already_admin and len(active_admins) >= 2:
+                    return jsonify({'error': '관리자는 최대 2명입니다.'}), 409
+                    
+            except Exception as e:
+                print(f"[ADMIN] 관리자 수 체크 중 오류: {e}")
+                # is_active/deleted_at 컬럼이 없는 경우: 단순 카운트로 제한
                 try:
-                    rows = supabase.table('users').select('id, is_active, deleted_at').eq('user_role','admin').execute()
-                    admins = rows.data or []
-                    def _is_active(u):
-                        return (u.get('is_active') is not False) and (u.get('deleted_at') is None)
-                    active_admins = [u for u in admins if _is_active(u)]
-                    if len(active_admins) >= 2:
-                        return jsonify({'error': '관리자는 최대 2명입니다.'}), 409
-                except Exception:
-                    # is_active/deleted_at 컬럼이 없는 경우: 단순 카운트로 제한
                     rows = supabase.table('users').select('id').eq('user_role','admin').execute()
-                    if len(rows.data or []) >= 2:
+                    admin_ids = [u.get('id') for u in (rows.data or [])]
+                    target_is_already_admin = user_id in admin_ids
+                    
+                    if not target_is_already_admin and len(admin_ids) >= 2:
                         return jsonify({'error': '관리자는 최대 2명입니다.'}), 409
+                except Exception as e2:
+                    print(f"[ADMIN] 단순 카운트도 실패: {e2}")
 
-                res = supabase.table('users').update({'user_role': 'admin'}).eq('id', user_id).execute()
-                return jsonify({'message': '관리자로 승격되었습니다.(폴백)', 'user': (res.data[0] if res.data else None)}), 200
+            # 관리자로 업데이트
+            res = supabase.table('users').update({'user_role': 'admin'}).eq('id', user_id).execute()
+            print(f"[ADMIN] 관리자 승격 완료: user_id={user_id}")
+            return jsonify({'message': '관리자로 승격되었습니다.', 'user': (res.data[0] if res.data else None)}), 200
 
         # 일반 사용자 강등 또는 기타 변경
         res = supabase.table('users').update({'user_role': new_role}).eq('id', user_id).execute()
+        print(f"[ADMIN] 역할 변경 완료: user_id={user_id}, 새역할={new_role}")
         return jsonify({'message': '역할이 변경되었습니다.', 'user': (res.data[0] if res.data else None)}), 200
     except Exception as e:
+        print(f"[ADMIN] 역할 변경 오류: {e}")
         return jsonify({'error': str(e)}), 500
 
 # 사용자 목록 조회 API (연락처용)
@@ -1412,11 +1445,11 @@ def upload_site_photo(site_id):
             content = file.read()
         except Exception:
             return jsonify({'error': '파일을 읽을 수 없습니다.'}), 400
-        MAX_SIZE = 8 * 1024 * 1024
+        MAX_SIZE = 16 * 1024 * 1024  # 16MB (핸드폰 카메라 사진 대응)
         if content is None or len(content) == 0:
             return jsonify({'error': '빈 파일은 업로드할 수 없습니다.'}), 400
         if len(content) > MAX_SIZE:
-            return jsonify({'error': '파일이 너무 큽니다. 최대 8MB까지 업로드할 수 있습니다.'}), 413
+            return jsonify({'error': '파일이 너무 큽니다. 최대 16MB까지 업로드할 수 있습니다.'}), 413
 
         now = datetime.utcnow()
         yyyy = str(now.year)

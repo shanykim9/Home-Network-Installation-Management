@@ -53,7 +53,9 @@ if not supabase_url or not supabase_key:
     supabase = DummySupabase()
 else:
     # SSL 인증서 검증 설정 (app.py와 동일)
-    verify_ssl = os.getenv('SUPABASE_VERIFY_SSL', 'false').lower() in ('true', '1', 'yes')
+    # 회사 네트워크 프록시 환경에서 SSL 검증을 비활성화
+    verify_ssl = False  # 로컬 개발 환경에서는 항상 False
+    print("[AUTH] SSL 검증 비활성화 (로컬 개발 모드)")
     
     if not verify_ssl:
         import urllib3
