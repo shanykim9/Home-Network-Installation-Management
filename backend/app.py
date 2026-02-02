@@ -10,6 +10,8 @@ import pandas as pd
 from io import BytesIO
 from pathlib import Path
 import ssl
+import logging
+from werkzeug.exceptions import HTTPException
 
 # 환경 변수 로드
 load_dotenv()
@@ -17,6 +19,52 @@ load_dotenv()
 app = Flask(__name__)
 # 환경변수 미설정 시에도 문자열 기본값을 보장
 app.config['SECRET_KEY'] = str(os.getenv('FLASK_SECRET_KEY') or 'dev-secret-key-change-in-production')
+
+# 서버 오류 로깅 설정 (파일 + 콘솔)
+_LOG_DIR = Path(__file__).resolve().parent / 'logs'
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+_LOG_FILE = _LOG_DIR / 'app.log'
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler(_LOG_FILE, encoding='utf-8'),
+        logging.StreamHandler()
+    ]
+)
+
+# 요청/응답 로깅 (파일 + 콘솔)
+def _append_log(line: str):
+    try:
+        with open(_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except Exception:
+        # 로그 실패는 무시
+        pass
+
+@app.before_request
+def _log_request():
+    line = f"{datetime.utcnow().isoformat()} REQ {request.method} {request.path}"
+    print(line)
+    app.logger.info("REQ %s %s", request.method, request.path)
+    _append_log(line)
+
+@app.after_request
+def _log_response(response):
+    line = f"{datetime.utcnow().isoformat()} RES {request.method} {request.path} {response.status}"
+    print(line)
+    app.logger.info("RES %s %s %s", request.method, request.path, response.status)
+    _append_log(line)
+    return response
+
+# 전역 에러 핸들러 (HTML 대신 JSON 반환)
+@app.errorhandler(Exception)
+def handle_exception(e):
+    if isinstance(e, HTTPException):
+        # Flask 기본 HTTP 에러는 그대로 반환
+        return jsonify({'error': e.name, 'message': e.description}), e.code
+    app.logger.exception('Unhandled exception')
+    return jsonify({'error': 'Internal Server Error', 'message': str(e)}), 500
 
 # 파일 업로드 크기 제한 설정 (16MB)
 # 핸드폰 카메라 사진은 보통 5~15MB이므로 넉넉하게 설정
@@ -31,12 +79,12 @@ supabase_key = os.getenv('SUPABASE_ANON_KEY')
 
 # 환경 변수가 없을 때 경고 메시지 출력 (ASCII 전용)
 if not supabase_url or not supabase_key:
-    print("[WARN] Supabase 환경 변수가 설정되지 않았습니다!")
-    print("       .env 파일을 생성하고 다음 내용을 추가하세요:")
+    print("[WARN] Supabase env vars not set!")
+    print("       Create .env file and add:")
     print("       SUPABASE_URL=your_supabase_url_here")
     print("       SUPABASE_ANON_KEY=your_supabase_anon_key_here")
     print("       FLASK_SECRET_KEY=your_secret_key_here")
-    print("       현재는 더미 데이터로 실행됩니다.")
+    print("       Running with dummy data for now.")
     
     # 더미 Supabase 클라이언트 (개발용)
     class DummySupabase:
@@ -64,7 +112,7 @@ else:
     # SSL 인증서 검증 설정 (개발 환경에서 자체 서명 인증서 문제 해결)
     # 회사 네트워크 프록시 환경에서 SSL 검증을 비활성화
     verify_ssl = False  # 로컬 개발 환경에서는 항상 False
-    print("[APP] SSL 검증 비활성화 (로컬 개발 모드)")
+    print("[APP] SSL verification disabled (local dev mode)")
     
     if not verify_ssl:
         # 개발 환경: SSL 검증 비활성화 (자체 서명 인증서 문제 해결)
@@ -80,8 +128,8 @@ else:
         os.environ['CURL_CA_BUNDLE'] = ''
         os.environ['REQUESTS_CA_BUNDLE'] = ''
         
-        print("[WARN] SSL 검증이 비활성화되었습니다. 개발 환경에서만 사용하세요!")
-        print("[WARN] 프로덕션 환경에서는 SUPABASE_VERIFY_SSL=true로 설정하세요!")
+        print("[WARN] SSL verification disabled. Use only in dev environment!")
+        print("[WARN] Set SUPABASE_VERIFY_SSL=true in production!")
     
     # Supabase 클라이언트 생성
     # SSL 검증이 비활성화된 경우, 환경 변수를 통해 httpx가 자동으로 비활성화하도록 함
@@ -107,10 +155,10 @@ else:
                         )
                         supabase.postgrest.session = new_client
             except Exception as e:
-                print(f"[WARN] httpx 클라이언트 verify 설정 실패, SSL 검증 비활성화가 적용되지 않을 수 있습니다: {e}")
+                print(f"[WARN] httpx client verify setting failed, SSL disable may not work: {e}")
     except Exception as e:
-        print(f"[ERROR] Supabase 클라이언트 생성 실패: {e}")
-        print(f"[ERROR] 더미 클라이언트로 대체합니다. Supabase 연결이 작동하지 않을 수 있습니다.")
+        print(f"[ERROR] Supabase client creation failed: {e}")
+        print(f"[ERROR] Using dummy client. Supabase connection may not work.")
         import traceback
         traceback.print_exc()
         # 에러가 발생해도 서버는 시작되도록 더미 클라이언트 사용

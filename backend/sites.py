@@ -58,13 +58,13 @@ supabase_service_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY')  # Storage 전용 
 
 try:
     print(f"[INFO] Supabase URL: {supabase_url}")
-    print(f"[INFO] Supabase Key: {supabase_key[:20]}..." if supabase_key else "[WARN] Supabase Key 없음")
+    print(f"[INFO] Supabase Key: {supabase_key[:20]}..." if supabase_key else "[WARN] Supabase Key not set")
 except Exception:
     pass
 
 if not supabase_url or not supabase_key:
     try:
-        print("[WARN] Supabase 환경 변수가 설정되지 않았습니다! 더미 데이터로 실행됩니다!.")
+        print("[WARN] Supabase env vars not set! Running with dummy data.")
     except Exception:
         pass
     
@@ -101,14 +101,14 @@ if not supabase_url or not supabase_key:
     
     supabase = DummySupabase()
     try:
-        print("[OK] 더미 Supabase 클라이언트 초기화 완료")
+        print("[OK] Dummy Supabase client initialized")
     except Exception:
         pass
 else:
     # SSL 인증서 검증 설정 (app.py와 동일)
     # 회사 네트워크 프록시 환경에서 SSL 검증을 비활성화
     verify_ssl = False  # 로컬 개발 환경에서는 항상 False
-    print("[SITES] SSL 검증 비활성화 (로컬 개발 모드)")
+    print("[SITES] SSL verification disabled (local dev mode)")
     
     if not verify_ssl:
         import urllib3
@@ -140,7 +140,7 @@ else:
             except Exception:
                 pass
     except Exception as e:
-        print(f"[ERROR] Supabase 클라이언트 생성 실패: {e}")
+        print(f"[ERROR] Supabase client creation failed: {e}")
         import traceback
         traceback.print_exc()
         # 에러가 발생해도 서버는 시작되도록 더미 클라이언트 사용
@@ -177,7 +177,7 @@ else:
         supabase = DummySupabase()
     
     try:
-        print("[OK] Supabase 클라이언트 초기화 완료")
+        print("[OK] Supabase client initialized")
     except Exception:
         pass
     supabase_service: Client | None = None
@@ -203,13 +203,13 @@ else:
                 except Exception:
                     pass
             try:
-                print("[OK] Supabase 서비스 키 클라이언트 준비(스토리지 전용)")
+                print("[OK] Supabase service key client ready (storage only)")
             except Exception:
                 pass
     except Exception:
         supabase_service = None
         try:
-            print("[WARN] Supabase 서비스 키 클라이언트 초기화 실패: 환경 변수 또는 권한을 확인하세요")
+            print("[WARN] Supabase service key client init failed: check env vars or permissions")
         except Exception:
             pass
 
@@ -296,9 +296,9 @@ def admin_update_user_role(user_id):
             if not target_user:
                 return jsonify({'error': '사용자를 찾을 수 없습니다.'}), 404
             current_role = target_user.get('user_role', 'user')
-            print(f"[ADMIN] 역할 변경 요청: user_id={user_id}, 현재역할={current_role}, 새역할={new_role}")
+            print(f"[ADMIN] Role change request: user_id={user_id}, current={current_role}, new={new_role}")
         except Exception as e:
-            print(f"[ADMIN] 대상 사용자 조회 실패: {e}")
+            print(f"[ADMIN] Target user lookup failed: {e}")
             current_role = None
 
         # 이미 같은 역할이면 변경할 필요 없음
@@ -320,14 +320,14 @@ def admin_update_user_role(user_id):
                 # 대상 사용자가 이미 관리자 목록에 있는지 확인 (이미 관리자인 경우)
                 target_is_already_admin = any(a.get('id') == user_id for a in active_admins)
                 
-                print(f"[ADMIN] 현재 활성 관리자 수: {len(active_admins)}, 대상이 이미 관리자: {target_is_already_admin}")
+                print(f"[ADMIN] Active admins: {len(active_admins)}, target already admin: {target_is_already_admin}")
                 
                 # 대상이 이미 관리자가 아닌 경우에만 관리자 수 제한 체크
                 if not target_is_already_admin and len(active_admins) >= 2:
                     return jsonify({'error': '관리자는 최대 2명입니다.'}), 409
                     
             except Exception as e:
-                print(f"[ADMIN] 관리자 수 체크 중 오류: {e}")
+                print(f"[ADMIN] Admin count check error: {e}")
                 # is_active/deleted_at 컬럼이 없는 경우: 단순 카운트로 제한
                 try:
                     rows = supabase.table('users').select('id').eq('user_role','admin').execute()
@@ -337,19 +337,19 @@ def admin_update_user_role(user_id):
                     if not target_is_already_admin and len(admin_ids) >= 2:
                         return jsonify({'error': '관리자는 최대 2명입니다.'}), 409
                 except Exception as e2:
-                    print(f"[ADMIN] 단순 카운트도 실패: {e2}")
+                    print(f"[ADMIN] Simple count also failed: {e2}")
 
             # 관리자로 업데이트
             res = supabase.table('users').update({'user_role': 'admin'}).eq('id', user_id).execute()
-            print(f"[ADMIN] 관리자 승격 완료: user_id={user_id}")
+            print(f"[ADMIN] Admin promotion complete: user_id={user_id}")
             return jsonify({'message': '관리자로 승격되었습니다.', 'user': (res.data[0] if res.data else None)}), 200
 
         # 일반 사용자 강등 또는 기타 변경
         res = supabase.table('users').update({'user_role': new_role}).eq('id', user_id).execute()
-        print(f"[ADMIN] 역할 변경 완료: user_id={user_id}, 새역할={new_role}")
+        print(f"[ADMIN] Role change complete: user_id={user_id}, new_role={new_role}")
         return jsonify({'message': '역할이 변경되었습니다.', 'user': (res.data[0] if res.data else None)}), 200
     except Exception as e:
-        print(f"[ADMIN] 역할 변경 오류: {e}")
+        print(f"[ADMIN] Role change error: {e}")
         return jsonify({'error': str(e)}), 500
 
 # 사용자 목록 조회 API (연락처용)
@@ -593,15 +593,15 @@ def get_site_detail(site_id):
 @sites_bp.route('/sites/<int:site_id>', methods=['PATCH','PUT'])
 def update_site(site_id):
     try:
-        print(f"🔧 현장 수정 요청: ID {site_id}")
-        print(f"📝 요청 데이터: {request.get_json()}")
-        print(f"🔑 인증 헤더: {request.headers.get('Authorization', '없음')}")
-        print(f"🌐 Supabase URL: {supabase_url}")
-        print(f"🔑 Supabase Key: {supabase_key[:20]}..." if supabase_key else "❌ Supabase Key 없음")
+        print(f"[INFO] Site update request: ID {site_id}")
+        print(f"[INFO] Request data received")
+        print(f"[INFO] Auth header present: {bool(request.headers.get('Authorization'))}")
+        print(f"[INFO] Supabase URL: {supabase_url}")
+        print(f"[INFO] Supabase Key present: {bool(supabase_key)}")
         
         auth_header = request.headers.get('Authorization')
         if not auth_header:
-            print("❌ 인증 헤더 없음")
+            print("[ERR] No auth header")
             return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
         token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
         payload = verify_token(token)
@@ -610,20 +610,20 @@ def update_site(site_id):
             return jsonify({'error': '유효하지 않은 토큰입니다.'}), 401
         
         # 권한 확인
-        print(f"🔍 권한 확인 중: site_id={site_id}")
+        print(f"[INFO] Checking permission: site_id={site_id}")
         try:
             site = supabase.table('sites').select('id, created_by').eq('id', site_id).execute()
-            print(f"✅ 권한 확인 성공: {site.data}")
+            print(f"[OK] Permission check passed")
         except Exception as db_error:
-            print(f"❌ 권한 확인 실패: {db_error}")
+            print(f"[ERR] Permission check failed: {db_error}")
             return jsonify({'error': f'데이터베이스 연결 오류: {str(db_error)}'}), 500
             
         if not site.data:
-            print("❌ 현장을 찾을 수 없음")
+            print("[ERR] Site not found")
             return jsonify({'error': '현장을 찾을 수 없습니다.'}), 404
         site_info = site.data[0]
         if payload['user_role'] != 'admin' and site_info['created_by'] != payload['user_id']:
-            print("❌ 접근 권한 없음")
+            print("[ERR] Access denied")
             return jsonify({'error': '접근 권한이 없습니다.'}), 403
         
         data = request.get_json()
@@ -657,13 +657,13 @@ def update_site(site_id):
         
         # None 값 제거
         update_data = {k: v for k, v in update_data.items() if v is not None}
-        print(f"📝 업데이트할 데이터: {update_data}")
+        print(f"[INFO] Update data prepared")
         
         try:
             result = supabase.table('sites').update(update_data).eq('id', site_id).execute()
-            print(f"✅ 데이터베이스 업데이트 성공: {result.data}")
+            print(f"[OK] Database update success")
         except Exception as update_error:
-            print(f"❌ 데이터베이스 업데이트 실패: {update_error}")
+            print(f"[ERR] Database update failed: {update_error}")
             return jsonify({'error': f'데이터베이스 업데이트 오류: {str(update_error)}'}), 500
         
         if result.data:
@@ -721,9 +721,9 @@ def get_site_contacts(site_id):
 @sites_bp.route('/sites/<int:site_id>/products', methods=['POST'])
 def upsert_site_products(site_id):
     try:
-        print(f"🔍 제품수량 저장 요청 - 현장 ID: {site_id}")
-        print(f"📝 Raw 데이터: {request.get_data()}")
-        print(f"📝 Content-Type: {request.headers.get('Content-Type', '없음')}")
+        print(f"[INFO] Product save request - site_id: {site_id}")
+        print(f"[INFO] Raw data received")
+        print(f"[INFO] Content-Type: {request.headers.get('Content-Type', 'none')}")
         
         auth_header = request.headers.get('Authorization')
         if not auth_header:
@@ -736,9 +736,9 @@ def upsert_site_products(site_id):
         # JSON 데이터 안전하게 파싱
         try:
             data = request.get_json()
-            print(f"📝 파싱된 JSON 데이터: {data}")
+            print(f"[INFO] Parsed JSON data")
         except Exception as json_error:
-            print(f"❌ JSON 파싱 오류: {json_error}")
+            print(f"[ERR] JSON parsing error: {json_error}")
             return jsonify({'error': '잘못된 JSON 형식입니다.'}), 400
         
         # 권한 확인
@@ -770,7 +770,7 @@ def upsert_site_products(site_id):
         
         # None 값 제거
         payload_data = {k: v for k, v in payload_data.items() if v is not None}
-        print(f"💾 저장할 데이터: {payload_data}")
+        print(f"[INFO] Data to save prepared")
         
         existing = supabase.table('site_products').select('id').eq('site_id', site_id).limit(1).execute()
         if existing.data:
@@ -781,23 +781,23 @@ def upsert_site_products(site_id):
             payload_data['created_at'] = datetime.utcnow().isoformat()
             result = supabase.table('site_products').insert(payload_data).execute()
         
-        print(f"✅ 제품수량 저장 성공: {result.data[0] if result.data else 'None'}")
+        print(f"[OK] Product quantity saved")
         if result.data:
             return jsonify({'message': '제품수량 정보가 저장되었습니다.', 'products': result.data[0]}), 200
         else:
             return jsonify({'error': '제품수량 정보 저장 중 오류가 발생했습니다.'}), 500
             
     except Exception as e:
-        print(f"❌ 제품수량 저장 오류: {str(e)}")
+        print(f"[ERR] Product quantity save error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # 현장 연락처 저장(업서트)
 @sites_bp.route('/sites/<int:site_id>/contacts', methods=['POST'])
 def upsert_site_contacts(site_id):
     try:
-        print(f"🔍 연락처 저장 요청 - 현장 ID: {site_id}")
-        print(f"📝 Raw 데이터: {request.get_data()}")
-        print(f"📝 Content-Type: {request.headers.get('Content-Type', '없음')}")
+        print(f"[INFO] Contact save request - site_id: {site_id}")
+        print(f"[INFO] Raw data received")
+        print(f"[INFO] Content-Type: {request.headers.get('Content-Type', 'none')}")
         
         auth_header = request.headers.get('Authorization')
         if not auth_header:
@@ -810,9 +810,9 @@ def upsert_site_contacts(site_id):
         # JSON 데이터 안전하게 파싱
         try:
             data = request.get_json()
-            print(f"📝 파싱된 JSON 데이터: {data}")
+            print(f"[INFO] Parsed JSON data")
         except Exception as json_error:
-            print(f"❌ JSON 파싱 오류: {json_error}")
+            print(f"[ERR] JSON parsing error: {json_error}")
             return jsonify({'error': '잘못된 JSON 형식입니다.'}), 400
         
         # 권한 확인
@@ -842,7 +842,7 @@ def upsert_site_contacts(site_id):
         
         # None 값 제거
         payload_data = {k: v for k, v in payload_data.items() if v is not None}
-        print(f"💾 저장할 데이터: {payload_data}")
+        print(f"[INFO] Data to save prepared")
         
         # 1) 메인 레코드 upsert
         existing = supabase.table('site_contacts').select('id').eq('site_id', site_id).limit(1).execute()
@@ -906,17 +906,17 @@ def upsert_site_contacts(site_id):
             except Exception as e_ins:
                 # 테이블이 없으면 조용히 패스(프론트에서 SQL 적용 유도)
                 if 'site_contact_people' not in str(e_ins):
-                    print(f"⚠️ site_contact_people 저장 오류({kind}): {e_ins}")
+                    print(f"[WARN] site_contact_people save error({kind}): {e_ins}")
 
         _replace('sales', sales_list)
         _replace('construction', construction_list)
         _replace('installer', installer_list)
         _replace('network', network_list)
 
-        print(f"✅ 연락처 저장 성공: {result.data[0] if result.data else 'None'}")
+        print(f"[OK] Contact saved")
         return jsonify({'message': '연락처가 저장되었습니다.', 'contacts': result.data[0] if result.data else payload_data}), 200
     except Exception as e:
-        print(f"❌ 연락처 저장 오류: {str(e)}")
+        print(f"[ERR] Contact save error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # 세대부연동 조회 (조명SW/대기전력SW/가스감지기/VPN/일괄소등 등)
@@ -965,7 +965,7 @@ def upsert_household_integrations(site_id):
 
         data = request.get_json() or {}
         items = data.get('items', [])
-        print(f"📝 세대부 저장 요청 items: {items}")
+        print(f"[HOUSEHOLD] Save request items: {len(items)} items")
 
         def _normalize(v):
             if v is None:
@@ -979,11 +979,12 @@ def upsert_household_integrations(site_id):
             return 'Y' if str(v or 'N').strip().upper() == 'Y' else 'N'
 
         saved = []
+        errors = []
         allowed = ['lighting_sw','standby_power_sw','gas_detector','heating','ventilation','door_lock','air_conditioner','real_time_metering','environment_sensor','vpn','all_off_switch','bathroom_phone','kitchen_tv']
         for item in items:
             itype = (item.get('integration_type') or '').strip()
             if itype not in allowed:
-                print(f"⚠️ 허용되지 않은 타입(세대부): {itype}")
+                print(f"[WARN] Invalid type(household): {itype}")
                 continue
             
             # 저장할 의미 있는 데이터가 있는지 확인
@@ -997,7 +998,7 @@ def upsert_household_integrations(site_id):
             # enabled가 'N'이고 다른 모든 필드가 비어있으면 저장하지 않음
             has_data = enabled == 'Y' or project_no or company_name or contact_person or contact_phone or notes
             if not has_data:
-                print(f"⏭️ 저장할 데이터 없음(세대부): {itype} - 모든 필드가 비어있음")
+                print(f"[SKIP] No data(household): {itype}")
                 continue
             
             payload_data = {
@@ -1011,31 +1012,41 @@ def upsert_household_integrations(site_id):
                 'notes': notes,
                 'updated_at': datetime.utcnow().isoformat()
             }
-            print(f"➡️ 업서트 시도(세대부): {payload_data}")
+            print(f"[UPSERT] Trying(household): {itype}")
 
             # 1) 업데이트 우선(site_id + integration_type)
             try:
                 upd = supabase.table('site_household_integrations').update(payload_data).eq('site_id', site_id).eq('integration_type', itype).execute()
                 if upd.data:
-                    print(f"✅ 업데이트 성공(세대부): {upd.data}")
+                    print(f"[OK] Updated(household): {itype}")
                     saved.append(upd.data[0])
                     continue
             except Exception as e_upd:
-                print(f"❌ 업데이트 오류(세대부): {str(e_upd)}")
+                print(f"[ERR] Update failed(household): {str(e_upd)}")
 
             # 2) 없으면 삽입
             try:
                 payload_insert = dict(payload_data)
                 payload_insert['created_at'] = datetime.utcnow().isoformat()
                 ins = supabase.table('site_household_integrations').insert(payload_insert).execute()
-                print(f"✅ 삽입 성공(세대부): {ins.data}")
+                print(f"[OK] Inserted(household): {itype}")
                 if ins.data:
                     saved.append(ins.data[0])
             except Exception as e_ins:
-                # 삽입 실패 시 해당 항목만 건너뛰고 계속 진행
-                print(f"⚠️ 삽입 실패(세대부) - 항목 건너뜀: {itype}, 오류: {str(e_ins)}")
-                # 에러가 발생해도 다른 항목 처리를 계속함
+                # 삽입 실패 시 해당 항목만 건너뜀
+                err_text = str(e_ins)
+                print(f"[WARN] Insert failed(household): {itype}, error: {err_text}")
+                errors.append({'integration_type': itype, 'error': err_text})
                 continue
+
+        # 일부 저장 실패 시 원인 안내
+        if errors:
+            types = [e.get('integration_type') for e in errors if e.get('integration_type')]
+            return jsonify({
+                'error': '일부 항목 저장 실패',
+                'message': 'DB 제약 조건(integration_type) 또는 스키마 불일치로 실패했을 수 있습니다.',
+                'error_detail': '; '.join([f"{e.get('integration_type')}: {e.get('error')}" for e in errors])
+            }), 409
 
         # 저장된 항목이 없을 때 안내 메시지 반환
         if not saved:
@@ -1043,7 +1054,7 @@ def upsert_household_integrations(site_id):
 
         return jsonify({'message': '세대부연동이 저장되었습니다.', 'items': saved}), 200
     except Exception as e:
-        print(f"❌ 세대부연동 전체 오류: {str(e)}")
+        print(f"[ERR] Household integration error: {str(e)}")
         return jsonify({'error': '세대부연동 저장 실패', 'error_detail': str(e)}), 500
 
 # 공용부연동 조회 (주차관제/원격검침/CCTV)
@@ -1075,9 +1086,9 @@ def get_common_integrations(site_id):
 @sites_bp.route('/sites/<int:site_id>/household', methods=['POST'])
 def upsert_site_household(site_id):
     try:
-        print(f"🔍 세대부연동 저장 요청 - 현장 ID: {site_id}")
-        print(f"📝 Raw 데이터: {request.get_data()}")
-        print(f"📝 Content-Type: {request.headers.get('Content-Type', '없음')}")
+        print(f"[INFO] Household integration save request - site_id: {site_id}")
+        print(f"[INFO] Raw data received")
+        print(f"[INFO] Content-Type: {request.headers.get('Content-Type', 'none')}")
         
         auth_header = request.headers.get('Authorization')
         if not auth_header:
@@ -1090,9 +1101,9 @@ def upsert_site_household(site_id):
         # JSON 데이터 안전하게 파싱
         try:
             data = request.get_json()
-            print(f"📝 파싱된 JSON 데이터: {data}")
+            print(f"[INFO] Parsed JSON data")
         except Exception as json_error:
-            print(f"❌ JSON 파싱 오류: {json_error}")
+            print(f"[ERR] JSON parsing error: {json_error}")
             return jsonify({'error': '잘못된 JSON 형식입니다.'}), 400
         
         # 권한 확인
@@ -1117,7 +1128,7 @@ def upsert_site_household(site_id):
         
         # None 값 제거
         payload_data = {k: v for k, v in payload_data.items() if v is not None}
-        print(f"💾 저장할 데이터: {payload_data}")
+        print(f"[INFO] Data to save prepared")
         
         existing = supabase.table('site_household_integrations').select('id').eq('site_id', site_id).limit(1).execute()
         if existing.data:
@@ -1128,23 +1139,23 @@ def upsert_site_household(site_id):
             payload_data['created_at'] = datetime.utcnow().isoformat()
             result = supabase.table('site_household_integrations').insert(payload_data).execute()
         
-        print(f"✅ 세대부연동 저장 성공: {result.data[0] if result.data else 'None'}")
+        print(f"[OK] Household integration saved")
         if result.data:
             return jsonify({'message': '세대부연동 정보가 저장되었습니다.', 'household': result.data[0]}), 200
         else:
             return jsonify({'error': '세대부연동 정보 저장 중 오류가 발생했습니다.'}), 500
             
     except Exception as e:
-        print(f"❌ 세대부연동 저장 오류: {str(e)}")
+        print(f"[ERR] Household integration save error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # 현장 공용부연동 저장(업서트) - 프론트엔드용
 @sites_bp.route('/sites/<int:site_id>/common', methods=['POST'])
 def upsert_site_common(site_id):
     try:
-        print(f"🔍 공용부연동 저장 요청 - 현장 ID: {site_id}")
-        print(f"📝 Raw 데이터: {request.get_data()}")
-        print(f"📝 Content-Type: {request.headers.get('Content-Type', '없음')}")
+        print(f"[INFO] Common integration save request - site_id: {site_id}")
+        print(f"[INFO] Raw data received")
+        print(f"[INFO] Content-Type: {request.headers.get('Content-Type', 'none')}")
         
         auth_header = request.headers.get('Authorization')
         if not auth_header:
@@ -1157,9 +1168,9 @@ def upsert_site_common(site_id):
         # JSON 데이터 안전하게 파싱
         try:
             data = request.get_json()
-            print(f"📝 파싱된 JSON 데이터: {data}")
+            print(f"[INFO] Parsed JSON data")
         except Exception as json_error:
-            print(f"❌ JSON 파싱 오류: {json_error}")
+            print(f"[ERR] JSON parsing error: {json_error}")
             return jsonify({'error': '잘못된 JSON 형식입니다.'}), 400
         
         # 권한 확인
@@ -1184,7 +1195,7 @@ def upsert_site_common(site_id):
         
         # None 값 제거
         payload_data = {k: v for k, v in payload_data.items() if v is not None}
-        print(f"💾 저장할 데이터: {payload_data}")
+        print(f"[INFO] Data to save prepared")
         
         existing = supabase.table('site_common_integrations').select('id').eq('site_id', site_id).limit(1).execute()
         if existing.data:
@@ -1195,14 +1206,14 @@ def upsert_site_common(site_id):
             payload_data['created_at'] = datetime.utcnow().isoformat()
             result = supabase.table('site_common_integrations').insert(payload_data).execute()
         
-        print(f"✅ 공용부연동 저장 성공: {result.data[0] if result.data else 'None'}")
+        print(f"[OK] Common integration saved")
         if result.data:
             return jsonify({'message': '공용부연동 정보가 저장되었습니다.', 'common': result.data[0]}), 200
         else:
             return jsonify({'error': '공용부연동 정보 저장 중 오류가 발생했습니다.'}), 500
             
     except Exception as e:
-        print(f"❌ 공용부연동 저장 오류: {str(e)}")
+        print(f"[ERR] Common integration save error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # 공용부연동 저장(업서트)
@@ -1226,7 +1237,7 @@ def upsert_common_integrations(site_id):
 
         data = request.get_json() or {}
         items = data.get('items', [])
-        print(f"📝 공용부 저장 요청 items: {items}")
+        print(f"[COMMON] Save request items: {len(items)} items")
 
         def _normalize(v):
             if v is None:
@@ -1244,7 +1255,7 @@ def upsert_common_integrations(site_id):
         for item in items:
             itype = (item.get('integration_type') or '').strip()
             if itype not in allowed:
-                print(f"⚠️ 허용되지 않은 타입(공용부): {itype}")
+                print(f"[WARN] Invalid type(common): {itype}")
                 continue
             
             # 저장할 의미 있는 데이터가 있는지 확인
@@ -1258,7 +1269,7 @@ def upsert_common_integrations(site_id):
             # enabled가 'N'이고 다른 모든 필드가 비어있으면 저장하지 않음
             has_data = enabled == 'Y' or project_no or company_name or contact_person or contact_phone or notes
             if not has_data:
-                print(f"⏭️ 저장할 데이터 없음(공용부): {itype} - 모든 필드가 비어있음")
+                print(f"[SKIP] No data(common): {itype}")
                 continue
             
             payload_data = {
@@ -1272,29 +1283,29 @@ def upsert_common_integrations(site_id):
                 'notes': notes,
                 'updated_at': datetime.utcnow().isoformat()
             }
-            print(f"➡️ 업서트 시도(공용부): {payload_data}")
+            print(f"[UPSERT] Trying(common): {itype}")
 
             # 1) 업데이트 우선(site_id + integration_type)
             try:
                 upd = supabase.table('site_common_integrations').update(payload_data).eq('site_id', site_id).eq('integration_type', itype).execute()
                 if upd.data:
-                    print(f"✅ 업데이트 성공(공용부): {upd.data}")
+                    print(f"[OK] Updated(common): {itype}")
                     saved.append(upd.data[0])
                     continue
             except Exception as e_upd:
-                print(f"❌ 업데이트 오류(공용부): {str(e_upd)}")
+                print(f"[ERR] Update failed(common): {str(e_upd)}")
 
             # 2) 없으면 삽입
             try:
                 payload_insert = dict(payload_data)
                 payload_insert['created_at'] = datetime.utcnow().isoformat()
                 ins = supabase.table('site_common_integrations').insert(payload_insert).execute()
-                print(f"✅ 삽입 성공(공용부): {ins.data}")
+                print(f"[OK] Inserted(common): {itype}")
                 if ins.data:
                     saved.append(ins.data[0])
             except Exception as e_ins:
                 # 삽입 실패 시 해당 항목만 건너뛰고 계속 진행
-                print(f"⚠️ 삽입 실패(공용부) - 항목 건너뜀: {itype}, 오류: {str(e_ins)}")
+                print(f"[WARN] Insert failed(common): {itype}, error: {str(e_ins)}")
                 # 에러가 발생해도 다른 항목 처리를 계속함
                 continue
 
@@ -1304,7 +1315,7 @@ def upsert_common_integrations(site_id):
 
         return jsonify({'message': '공용부연동이 저장되었습니다.', 'items': saved}), 200
     except Exception as e:
-        print(f"❌ 공용부연동 전체 오류: {str(e)}")
+        print(f"[ERR] Common integration error: {str(e)}")
         return jsonify({'error': '공용부연동 저장 실패', 'error_detail': str(e)}), 500
 
 # 제품수량 조회 (평면 스키마: wallpad_*, doorphone_*, lobbyphone_*, guardphone_*)
@@ -2220,9 +2231,9 @@ def export_data():
                         error_log += f"총 {len(site_ids)}개 현장 중 {excel_files_created}개 성공, {len(excel_errors)}개 실패\n\n"
                         error_log += "\n".join(excel_errors)
                         zf.writestr('data/excel_errors.txt', error_log)
-                        print(f"[WARN] Excel 생성 중 {len(excel_errors)}개 현장에서 오류 발생")
+                        print(f"[WARN] Excel generation errors in {len(excel_errors)} sites")
                     else:
-                        print(f"[INFO] 모든 현장({excel_files_created}개)의 Excel 파일이 성공적으로 생성되었습니다.")
+                        print(f"[INFO] All sites({excel_files_created}) Excel files generated successfully")
                             
                 except Exception as e_xlsx:
                     # 실패 시 안내 파일만 기록
@@ -2376,12 +2387,12 @@ def upsert_work_items(site_id):
                     try:
                         supabase.table('work_items').delete().eq('id', item_id).eq('site_id', site_id).execute()
                         deleted_ids.append(item_id)
-                        print(f"🗑️ 작업 항목 삭제 완료 (id={item_id})")
+                        print(f"[OK] Work item deleted (id={item_id})")
                     except Exception as delete_err:
-                        print(f"❌ 작업 항목 삭제 오류 (id={item_id}): {str(delete_err)}")
+                        print(f"[ERR] Work item delete error (id={item_id}): {str(delete_err)}")
                         raise
                 else:
-                    print("⚠️ ID가 없는 항목 삭제 요청 무시")
+                    print("[WARN] Delete request without ID ignored")
                 continue
 
             content = (it.get('content') or '').strip()
@@ -2424,7 +2435,7 @@ def upsert_work_items(site_id):
             
             # 디버깅: 업데이트할 데이터 로그 출력
             if it.get('id'):
-                print(f"📝 업데이트할 항목 (id={it.get('id')}): alarm_date={alarm_date}, status={status}, content={content[:50]}")
+                print(f"[INFO] Update item (id={it.get('id')}): alarm_date={alarm_date}, status={status}")
             # done 저장인데 done_date가 없으면 클라이언트 로컬 날짜를 못받은 경우를 대비해 서버 날짜로 보정
             if status == 'done' and not payload_data['done_date']:
                 payload_data['done_date'] = date.today().isoformat()
@@ -2449,15 +2460,15 @@ def upsert_work_items(site_id):
                         # alarm_date가 None으로 설정되어야 하는데 업데이트되지 않은 경우 재시도
                         updated_item = res.data[0]
                         if alarm_date is None and updated_item.get('alarm_date') is not None:
-                            print(f"⚠️ alarm_date가 NULL로 설정되지 않음 (res.data 있음), 재시도...")
+                            print(f"[WARN] alarm_date not set to NULL, retrying...")
                             retry_payload = {'alarm_date': None, 'updated_at': datetime.utcnow().isoformat()}
                             try:
                                 retry_res = supabase.table('work_items').update(retry_payload).eq('id', it['id']).eq('site_id', site_id).execute()
                                 if retry_res.data:
                                     saved[-1] = retry_res.data[0]
-                                    print(f"✅ alarm_date NULL 설정 성공")
+                                    print(f"[OK] alarm_date set to NULL")
                             except Exception as retry_err:
-                                print(f"⚠️ alarm_date NULL 설정 재시도 실패: {str(retry_err)}")
+                                print(f"[WARN] alarm_date NULL retry failed: {str(retry_err)}")
                     else:
                         # res.data가 비어있어도 업데이트는 성공했을 수 있으므로, 실제 데이터를 다시 조회
                         verify_res = supabase.table('work_items').select('*').eq('id', it['id']).eq('site_id', site_id).execute()
@@ -2465,23 +2476,23 @@ def upsert_work_items(site_id):
                             saved.append(verify_res.data[0])
                             # 업데이트된 데이터 확인
                             updated_item = verify_res.data[0]
-                            print(f"✅ 업데이트 확인 (id={it['id']}): status={updated_item.get('status')}, alarm_date={updated_item.get('alarm_date')}")
+                            print(f"[OK] Update confirmed (id={it['id']})")
                             # alarm_date가 None으로 설정되어야 하는데 업데이트되지 않은 경우 재시도
                             if alarm_date is None and updated_item.get('alarm_date') is not None:
-                                print(f"⚠️ alarm_date가 NULL로 설정되지 않음, 재시도...")
+                                print(f"[WARN] alarm_date not NULL, retrying...")
                                 # None 값을 명시적으로 NULL로 설정하기 위해 다시 시도
                                 retry_payload = {'alarm_date': None, 'updated_at': datetime.utcnow().isoformat()}
                                 try:
                                     retry_res = supabase.table('work_items').update(retry_payload).eq('id', it['id']).eq('site_id', site_id).execute()
                                     if retry_res.data:
                                         saved[-1] = retry_res.data[0]  # 업데이트된 데이터로 교체
-                                        print(f"✅ alarm_date NULL 설정 성공")
+                                        print(f"[OK] alarm_date set to NULL")
                                 except Exception as retry_err:
-                                    print(f"⚠️ alarm_date NULL 설정 재시도 실패: {str(retry_err)}")
+                                    print(f"[WARN] alarm_date NULL retry failed: {str(retry_err)}")
                         else:
-                            print(f"⚠️ 업데이트 확인 실패 (id={it['id']}): 데이터를 찾을 수 없음")
+                            print(f"[WARN] Update verify failed (id={it['id']}): data not found")
                 except Exception as update_err:
-                    print(f"❌ 업데이트 오류 (id={it['id']}): {str(update_err)}")
+                    print(f"[ERR] Update error (id={it['id']}): {str(update_err)}")
                     raise
             else:
                 payload_data['created_at'] = datetime.utcnow().isoformat()
@@ -2571,23 +2582,23 @@ def confirm_alarms(site_id):
 @sites_bp.route('/check-project-no', methods=['POST'])
 def check_project_no():
     try:
-        print(f"🔍 프로젝트 번호 중복 체크 요청")
-        print(f"🔑 인증 헤더: {request.headers.get('Authorization', '없음')}")
-        print(f"📝 Content-Type: {request.headers.get('Content-Type', '없음')}")
-        print(f"📝 Raw 데이터: {request.get_data()}")
+        print(f"[INFO] Project number duplicate check request")
+        print(f"[INFO] Auth header present: {bool(request.headers.get('Authorization'))}")
+        print(f"[INFO] Content-Type: {request.headers.get('Content-Type', 'none')}")
+        print(f"[INFO] Raw data received")
         
         # JSON 데이터 안전하게 파싱
         try:
             data = request.get_json()
-            print(f"📝 파싱된 JSON 데이터: {data}")
+            print(f"[INFO] Parsed JSON data")
         except Exception as json_error:
-            print(f"❌ JSON 파싱 오류: {json_error}")
+            print(f"[ERR] JSON parsing error: {json_error}")
             return jsonify({'error': '잘못된 JSON 형식입니다.'}), 400
         
         # 인증 확인
         auth_header = request.headers.get('Authorization')
         if not auth_header:
-            print("❌ 인증 헤더 없음")
+            print("[ERR] No auth header")
             return jsonify({'error': '인증 토큰이 필요합니다.'}), 401
         
         token = auth_header.split(' ')[1] if auth_header.startswith('Bearer ') else auth_header
@@ -2629,10 +2640,10 @@ def check_project_no():
             }), 200
             
     except Exception as e:
-        print(f"❌ 프로젝트 번호 중복 체크 오류: {str(e)}")
-        print(f"🔍 오류 타입: {type(e).__name__}")
+        print(f"[ERR] Project number duplicate check error: {str(e)}")
+        print(f"[ERR] Error type: {type(e).__name__}")
         import traceback
-        print(f"📚 스택 트레이스: {traceback.format_exc()}")
+        print(f"[ERR] Stack trace: {traceback.format_exc()}")
         return jsonify({'error': str(e)}), 500
 
 

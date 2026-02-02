@@ -117,7 +117,7 @@
       loadHousehold();
     }catch(err){
       console.error(err);
-      Swal.fire('오류','세대부연동 저장 중 오류가 발생했습니다.','error');
+      Swal.fire('오류', String(err.message || err), 'error');
     }
   }
 

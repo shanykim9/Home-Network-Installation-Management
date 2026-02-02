@@ -55,7 +55,7 @@ else:
     # SSL 인증서 검증 설정 (app.py와 동일)
     # 회사 네트워크 프록시 환경에서 SSL 검증을 비활성화
     verify_ssl = False  # 로컬 개발 환경에서는 항상 False
-    print("[AUTH] SSL 검증 비활성화 (로컬 개발 모드)")
+    print("[AUTH] SSL verification disabled (local dev mode)")
     
     if not verify_ssl:
         import urllib3

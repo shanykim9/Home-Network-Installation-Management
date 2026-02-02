@@ -103,6 +103,7 @@ async function apiRequest(endpoint, options = {}) {
         
         if (!response.ok) {
             let errorMessage = '요청 처리 중 오류가 발생했습니다.';
+            const responseClone = response.clone();
             try {
                 const error = await response.json();
                 // 서버가 내려준 상세 사유를 최대한 노출
@@ -112,7 +113,12 @@ async function apiRequest(endpoint, options = {}) {
                 if (error.error_detail) parts.push(error.error_detail);
                 errorMessage = parts.length ? parts.join(' | ') : errorMessage;
             } catch (e) {
-                errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                try {
+                    const text = await responseClone.text();
+                    errorMessage = text ? text.slice(0, 200) : `HTTP ${response.status}: ${response.statusText}`;
+                } catch (_) {
+                    errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+                }
             }
             throw new Error(errorMessage);
         }
